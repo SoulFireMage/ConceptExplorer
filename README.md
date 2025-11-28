@@ -1,6 +1,8 @@
-# 🧠 Concept Explorer
+# Concept Explorer
 
-A fun web application that lets you "mash" concepts together and visualize their connections!
+Take a few concepts, generate a few properties, add a few cognitive moves and create ideas.
+
+A web application that lets you "mash" concepts together and visualize their connections!
 
 ## What it does
 
@@ -22,11 +24,6 @@ It then generates an interactive network graph showing how concepts evolve and c
 ```
 
 This will automatically find an available port and start the server!
-
-**Access Points:**
-- Local: http://localhost:5059
-- Network: http://192.168.0.94:5059
-- Dashboard: http://192.168.0.94:5001 (Development section)
 
 **Manual Start:**
 ```bash
@@ -50,6 +47,7 @@ python concept_explorer.py --port 5059
 ## Features
 
 - Auto-detection of concept domains using the Datamuse API
+- LLM integration for enhanced concept exploration
 - Custom domain creation
 - Interactive network visualization with physics simulation
 - Color-coded nodes by domain

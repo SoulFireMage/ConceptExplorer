@@ -1,5 +1,8 @@
 # Virtual environment
 venv/
+.venv/
+env/
+ENV/
 
 # Environment variables (contains secrets)
 .env
@@ -14,3 +17,22 @@ __pycache__/
 
 # Save files (user data)
 saves/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+
+# Misc
+*.log
+.DS_Store
