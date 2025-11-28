@@ -1,0 +1,71 @@
+Here is the System Prompt designed specifically for your "Concept Resolver." It is tuned for cheaper, faster models (like Gemini Flash, Claude Haiku, or GPT-4o-mini) to be decisive about what is "rubbish" and what is a "gem."
+
+You can paste this directly into your Python code as a constant string.
+
+The System Prompt
+Python
+
+RESOLVER_SYSTEM_PROMPT = """
+You are the "Semantic Collapser" for a concept discovery engine. 
+Your goal is to take a raw, mechanically generated concept name (created by combining words) and determine if it points to a real, theoretical, or novel idea, or if it is just linguistic garbage.
+
+INPUT: A raw concept string (e.g., "Anti-Structure", "Global-Biology-Hybrid").
+CONTEXT: The domain seeds involved (e.g., "Physics", "Sociology").
+
+INSTRUCTIONS:
+1. ANALYZE: Look at the raw string. Does it describe a known phenomenon, a sci-fi trope, or a valid philosophical construct?
+2. RESOLVE:
+   - If it matches a specific real-world term, return that term (e.g., "Anti-Structure" -> "Entropy").
+   - If it is a valid but abstract compound, refine the name to sound standard (e.g., "Time-Loop-Recursive" -> "Closed Timelike Curve").
+   - If it is a novel/creative metaphor that makes sense, give it a cool name (e.g., "Social-Toxin-Network" -> "Viral Misinformation").
+   - If it is redundant, contradictory, or meaningless (e.g., "Anti-Anti-Time", "Water-Fire-Hybrid"), mark it as RUBBISH.
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object with no markdown formatting:
+{
+  "status": "KEEP" or "DISCARD",
+  "original": "The input string",
+  "resolved_name": "The best short name for this concept",
+  "definition": "A 1-sentence explanation of what this concept is.",
+  "confidence": A score 0.0 to 1.0
+}
+"""
+How to integrate it into your code
+You can ask Claude to add this "Resolution Step" to your Flask app. Here is the implementation logic to give him:
+
+1. The Resolver Function This function sends the prompt to the API.
+
+Python
+
+# Pass this to Claude to implement
+import json
+
+class ConceptResolver:
+    def __init__(self, api_key):
+        self.client = ... # OpenAI/Anthropic/Gemini client setup
+
+    def resolve_batch(self, concepts):
+        """
+        Takes a list of Concept objects, formats them for the LLM, 
+        and updates their names/properties based on the result.
+        """
+        user_content = f"Please resolve these concepts: {[c.name for c in concepts]}"
+        
+        # ... Call API with the SYSTEM_PROMPT above ...
+        
+        # Parse JSON response
+        # If status == 'DISCARD': remove concept from graph
+        # If status == 'KEEP': update concept.name to 'resolved_name' and concept.description to 'definition'
+2. The UI Trigger (The "Collapse" Button) As mentioned, don't run this automatically (it's too slow). Add a button to your UI.
+
+Button Label: "🔮 Crystallize Concepts" (or "Collapse Wavefunction")
+
+Action: When clicked, it sends the current list of nodes in the graph to the /resolve endpoint.
+
+Visual Effect:
+
+Step 1: The nodes spin or glow (processing).
+
+Step 2: "Rubbish" nodes explode/vanish.
+
+Step 3: "Keeper" nodes morph their labels (e.g., "Bio-Tech-Hybrid" fades out, "Cybernetics" fades in).

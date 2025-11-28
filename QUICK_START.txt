@@ -1,0 +1,57 @@
+🧠 CONCEPT EXPLORER - QUICK START GUIDE
+========================================
+
+Everything is set up and ready to go!
+
+TO RUN:
+-------
+Just execute:
+    ./start.sh
+
+Or manually:
+    source venv/bin/activate
+    python concept_explorer.py --port 5050
+
+
+WHAT YOU'LL SEE:
+----------------
+The script will:
+1. Find an available port (starting at 5050)
+2. Start the Flask web server
+3. Show you the URL to open (e.g., http://localhost:5050)
+
+
+HOW TO USE:
+-----------
+1. Open the URL in your browser
+2. Type a concept name (like "Democracy" or "Bitcoin")
+3. Choose a domain or use Auto-Detect
+4. Add more concepts if you want
+5. Click "GENERATE CONCEPT GALAXY"
+6. Watch the interactive network graph appear!
+
+
+WHAT IT DOES:
+-------------
+Takes your concepts and applies transformations:
+- Scale Up (Global X)
+- Invert (Anti-X)
+- Lift (Meta-X)
+- Recurse (Self-X)
+- Rotate (X in different domain)
+- Blend (mash two concepts together)
+
+Then shows you a beautiful interactive graph of all the connections!
+
+
+FILES:
+------
+✓ venv/               - Virtual environment with all dependencies
+✓ concept_explorer.py - Main Flask application
+✓ templates/          - HTML interface
+✓ static/             - Generated graphs saved here
+✓ start.sh            - Easy launcher script
+✓ requirements.txt    - Dependencies list
+✓ README.md           - Full documentation
+
+Have fun exploring concepts! 🚀

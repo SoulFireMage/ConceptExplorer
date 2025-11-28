@@ -1,0 +1,106 @@
+The code is functional, but the "Concept Galaxy" tends to explode into a "hairball" graph (as seen in your right-hand panel) because the expansion logic is exponential, and the physics simulation needs tuning.
+
+Here are the 4 key refinement prompts to give Claude:
+
+1. Fix the "Name Splicing" Logic in op_blend
+Context: Currently, op_blend naively splits strings by spaces (split(' ')[0]). If you have a concept like "Global Complexity" and blend it with "fractal", you get "Global-fractal Hybrid". But if you blend "fractal" (no spaces) with "time", you might get weird artifacts.
+
+Prompt for Claude:
+
+"Refine the op_blend function. The current string splitting logic is too brittle. Please update it to handle single-word concepts better so we don't lose the actual concept name. Also, prevent blending a concept with itself or its direct inverse."
+
+The Code Fix:
+
+Python
+
+def op_blend(c1, c2):
+    # Avoid self-blending
+    if c1.name == c2.name: return None
+    
+    dom = f"{c1.domain}-{c2.domain}" if c1.domain != c2.domain else c1.domain
+    
+    # Smarter naming: remove existing prefixes like "Global", "Anti" to find the root
+    def strip_prefixes(n):
+        return n.replace("Global ", "").replace("Anti-", "").replace("Meta-", "").replace("Self-", "")
+    
+    n1 = strip_prefixes(c1.name)
+    n2 = strip_prefixes(c2.name)
+    
+    # Check if they are actually the same root now
+    if n1 == n2: return None
+
+    new_name = f"{n1}-{n2} Hybrid"
+    return Concept(new_name, dom, c1.properties.union(c2.properties), max(c1.dimension, c2.dimension))
+2. Tame the "Graph Explosion" (Pruning)
+Context: Your run function adds every operation for every node in the frontier.
+
+Steps = 1: 4 seeds → ~20 nodes.
+
+Steps = 2: 20 seeds → ~100 nodes.
+
+Steps = 3: Chaos.
+
+Prompt for Claude:
+
+"The graph grows exponentially. Modify the VisualGEE.run method to include a max_nodes parameter (default 100). If the frontier is too large, randomly sample concepts from it before generating new ones, so the browser doesn't crash."
+
+3. Stabilize the Physics (Fixing the UI "Jitter")
+Context: In your screenshot, the nodes are spread far apart, and the labels are overlapping. Pyvis defaults are often too "bouncy." We need to enforce a specific physics solver (barnesHut or forceAtlas2Based) to make the graph settle down.
+
+Prompt for Claude:
+
+"Update VisualGEE.save_viz to inject specific Pyvis physics options. We want solver='forceAtlas2Based' to stop the graph from jittering, and we should turn on smooth edges to make the connections look cleaner."
+
+The Code Fix:
+
+Python
+
+def save_viz(self, filename="concept_graph.html"):
+    # ... existing init ...
+    net = Network(height="800px", width="100%", bgcolor="#222222", font_color="white", select_menu=True)
+    
+    # KEY FIX: Better Physics options to prevent the "hairball"
+    net.set_options("""
+    var options = {
+      "nodes": {
+        "font": { "size": 16, "face": "tahoma" },
+        "borderWidth": 2
+      },
+      "edges": {
+        "color": { "inherit": true },
+        "smooth": { "type": "continuous" }
+      },
+      "physics": {
+        "forceAtlas2Based": {
+          "gravitationalConstant": -50,
+          "centralGravity": 0.01,
+          "springLength": 100,
+          "springConstant": 0.08
+        },
+        "minVelocity": 0.75,
+        "solver": "forceAtlas2Based"
+      }
+    }
+    """)
+    
+    net.from_nx(self.graph)
+    # ... save ...
+4. Optimize the API Calls (Speed)
+Context: The AutoSeeder calls the API sequentially. If you add "Complexity", it makes 2 API calls. If you add 5 seeds, that's 10 calls. It will feel slow.
+
+Prompt for Claude:
+
+"The AutoSeeder.fetch_data method should use a requests.Session() to reuse the connection, and we should ideally run the domain guessing in a non-blocking way or just set a strict timeout so the UI doesn't hang."
+
+Summary for your Claude Prompt
+If you want to do this in one shot, copy and paste this into Claude Code:
+
+"I have a Flask/NetworkX app. I need to refine it.
+
+Refine Logic: Update op_blend to strip prefixes (Global, Meta, etc.) before blending names so we don't get 'Global-Meta Hybrid', and return None if the roots are identical.
+
+Visuals: In save_viz, inject Pyvis options using forceAtlas2Based physics to stabilize the graph layout.
+
+Pruning: In VisualGEE.run, if len(next_frontier) exceeds 20, random.sample it down to 20 to prevent exponential graph explosion.
+
+Fix ID Display: In the Pyvis dropdown, the ID is showing the whole property dict. Ensure graph.add_node uses the Name as the ID, not the string representation of the object."

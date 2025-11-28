@@ -1,0 +1,16 @@
+# Virtual environment
+venv/
+
+# Environment variables (contains secrets)
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Claude config
+.claude/
+
+# Save files (user data)
+saves/

@@ -1,0 +1,88 @@
+🌐 CONCEPT EXPLORER - NETWORK ACCESS SETUP
+==========================================
+
+✅ SERVICE IS NOW RUNNING AND ACCESSIBLE FROM YOUR WINDOWS PC!
+
+ACCESS URLS:
+------------
+From Linux box:
+  http://localhost:5059
+
+From Windows PC (or any device on your network):
+  http://192.168.0.94:5059
+
+Via Dashboard:
+  http://192.168.0.94:5001
+  → Look in "💻 Development" section
+  → Click "Concept Explorer" card
+  → Click "Open Explorer" button
+
+
+CURRENT STATUS:
+---------------
+✓ Running on port 5059
+✓ Accessible on all network interfaces (0.0.0.0)
+✓ Registered in your dashboard
+✓ Ready to use from Windows PC
+
+
+WHAT'S RUNNING:
+---------------
+Process ID: Check with `ps aux | grep concept_explorer`
+Port: 5059
+Host: 0.0.0.0 (accessible from network)
+Location: /home/richard/shared/ConceptExplorer
+
+
+TO KEEP IT RUNNING PERMANENTLY:
+--------------------------------
+Currently running in background. To make it survive reboots:
+
+Option 1: Install as systemd service (recommended)
+  See INSTALL_SERVICE.md
+
+Option 2: Restart manually after reboot
+  cd /home/richard/shared/ConceptExplorer
+  ./start.sh
+
+
+TESTING FROM WINDOWS:
+---------------------
+1. Open browser on Windows PC
+2. Navigate to: http://192.168.0.94:5059
+3. You should see the purple gradient interface
+4. Try adding a concept like "Democracy" or "Bitcoin"
+5. Click "GENERATE CONCEPT GALAXY"
+6. Watch the interactive graph!
+
+
+FIREWALL NOTES:
+---------------
+If you can't access from Windows:
+- Port 5059 needs to be open on the Linux box
+- Check: sudo ufw status
+- Open if needed: sudo ufw allow 5059/tcp
+
+
+STOPPING THE SERVICE:
+---------------------
+Find process: ps aux | grep concept_explorer
+Kill it: kill <PID>
+
+Or just restart the Linux box (service won't auto-start unless systemd installed)
+
+
+DASHBOARD INTEGRATION:
+----------------------
+Service ID: 28
+Category: Development (💻)
+Icon: 🧠
+Status: Running
+Color: Purple (#667EEA)
+
+Actions:
+- "Open Explorer" → Opens http://192.168.0.94:5059
+- "GitHub Repo" → Shows file location
+
+
+ENJOY YOUR CONCEPT MASHUPS! 🧠✨

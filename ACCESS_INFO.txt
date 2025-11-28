@@ -1,0 +1,26 @@
+╔══════════════════════════════════════════════════════════════╗
+║          🧠 CONCEPT EXPLORER - QUICK ACCESS INFO            ║
+╚══════════════════════════════════════════════════════════════╝
+
+🌐 FROM YOUR WINDOWS PC:
+   http://192.168.0.94:5059
+
+📊 FROM YOUR DASHBOARD:
+   http://192.168.0.94:5001
+   → Development section → Concept Explorer
+
+🖥️  FROM LINUX:
+   http://localhost:5059
+
+═══════════════════════════════════════════════════════════════
+
+Current Status: ✅ RUNNING on port 5059
+
+Files Location: /home/richard/shared/ConceptExplorer
+
+Quick Commands:
+  Start:   ./start.sh
+  Check:   ps aux | grep concept_explorer
+  Logs:    tail -f static/*.html
+
+═══════════════════════════════════════════════════════════════

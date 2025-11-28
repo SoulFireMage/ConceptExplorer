@@ -1,0 +1,478 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script>function neighbourhoodHighlight(params) {
+  // console.log("in nieghbourhoodhighlight");
+  allNodes = nodes.get({ returnType: "Object" });
+  // originalNodes = JSON.parse(JSON.stringify(allNodes));
+  // if something is selected:
+  if (params.nodes.length > 0) {
+    highlightActive = true;
+    var i, j;
+    var selectedNode = params.nodes[0];
+    var degrees = 2;
+
+    // mark all nodes as hard to read.
+    for (let nodeId in allNodes) {
+      // nodeColors[nodeId] = allNodes[nodeId].color;
+      allNodes[nodeId].color = "rgba(200,200,200,0.5)";
+      if (allNodes[nodeId].hiddenLabel === undefined) {
+        allNodes[nodeId].hiddenLabel = allNodes[nodeId].label;
+        allNodes[nodeId].label = undefined;
+      }
+    }
+    var connectedNodes = network.getConnectedNodes(selectedNode);
+    var allConnectedNodes = [];
+
+    // get the second degree nodes
+    for (i = 1; i < degrees; i++) {
+      for (j = 0; j < connectedNodes.length; j++) {
+        allConnectedNodes = allConnectedNodes.concat(
+          network.getConnectedNodes(connectedNodes[j])
+        );
+      }
+    }
+
+    // all second degree nodes get a different color and their label back
+    for (i = 0; i < allConnectedNodes.length; i++) {
+      // allNodes[allConnectedNodes[i]].color = "pink";
+      allNodes[allConnectedNodes[i]].color = "rgba(150,150,150,0.75)";
+      if (allNodes[allConnectedNodes[i]].hiddenLabel !== undefined) {
+        allNodes[allConnectedNodes[i]].label =
+          allNodes[allConnectedNodes[i]].hiddenLabel;
+        allNodes[allConnectedNodes[i]].hiddenLabel = undefined;
+      }
+    }
+
+    // all first degree nodes get their own color and their label back
+    for (i = 0; i < connectedNodes.length; i++) {
+      // allNodes[connectedNodes[i]].color = undefined;
+      allNodes[connectedNodes[i]].color = nodeColors[connectedNodes[i]];
+      if (allNodes[connectedNodes[i]].hiddenLabel !== undefined) {
+        allNodes[connectedNodes[i]].label =
+          allNodes[connectedNodes[i]].hiddenLabel;
+        allNodes[connectedNodes[i]].hiddenLabel = undefined;
+      }
+    }
+
+    // the main node gets its own color and its label back.
+    // allNodes[selectedNode].color = undefined;
+    allNodes[selectedNode].color = nodeColors[selectedNode];
+    if (allNodes[selectedNode].hiddenLabel !== undefined) {
+      allNodes[selectedNode].label = allNodes[selectedNode].hiddenLabel;
+      allNodes[selectedNode].hiddenLabel = undefined;
+    }
+  } else if (highlightActive === true) {
+    // console.log("highlightActive was true");
+    // reset all nodes
+    for (let nodeId in allNodes) {
+      // allNodes[nodeId].color = "purple";
+      allNodes[nodeId].color = nodeColors[nodeId];
+      // delete allNodes[nodeId].color;
+      if (allNodes[nodeId].hiddenLabel !== undefined) {
+        allNodes[nodeId].label = allNodes[nodeId].hiddenLabel;
+        allNodes[nodeId].hiddenLabel = undefined;
+      }
+    }
+    highlightActive = false;
+  }
+
+  // transform the object into an array
+  var updateArray = [];
+  if (params.nodes.length > 0) {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        // console.log(allNodes[nodeId]);
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  } else {
+    // console.log("Nothing was selected");
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        // console.log(allNodes[nodeId]);
+        // allNodes[nodeId].color = {};
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  }
+}
+
+function filterHighlight(params) {
+  allNodes = nodes.get({ returnType: "Object" });
+  // if something is selected:
+  if (params.nodes.length > 0) {
+    filterActive = true;
+    let selectedNodes = params.nodes;
+
+    // hiding all nodes and saving the label
+    for (let nodeId in allNodes) {
+      allNodes[nodeId].hidden = true;
+      if (allNodes[nodeId].savedLabel === undefined) {
+        allNodes[nodeId].savedLabel = allNodes[nodeId].label;
+        allNodes[nodeId].label = undefined;
+      }
+    }
+
+    for (let i=0; i < selectedNodes.length; i++) {
+      allNodes[selectedNodes[i]].hidden = false;
+      if (allNodes[selectedNodes[i]].savedLabel !== undefined) {
+        allNodes[selectedNodes[i]].label = allNodes[selectedNodes[i]].savedLabel;
+        allNodes[selectedNodes[i]].savedLabel = undefined;
+      }
+    }
+
+  } else if (filterActive === true) {
+    // reset all nodes
+    for (let nodeId in allNodes) {
+      allNodes[nodeId].hidden = false;
+      if (allNodes[nodeId].savedLabel !== undefined) {
+        allNodes[nodeId].label = allNodes[nodeId].savedLabel;
+        allNodes[nodeId].savedLabel = undefined;
+      }
+    }
+    filterActive = false;
+  }
+
+  // transform the object into an array
+  var updateArray = [];
+  if (params.nodes.length > 0) {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  } else {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  }
+}
+
+function selectNode(nodes) {
+  network.selectNodes(nodes);
+  neighbourhoodHighlight({ nodes: nodes });
+  return nodes;
+}
+
+function selectNodes(nodes) {
+  network.selectNodes(nodes);
+  filterHighlight({nodes: nodes});
+  return nodes;
+}
+
+function highlightFilter(filter) {
+  let selectedNodes = []
+  let selectedProp = filter['property']
+  if (filter['item'] === 'node') {
+    let allNodes = nodes.get({ returnType: "Object" });
+    for (let nodeId in allNodes) {
+      if (allNodes[nodeId][selectedProp] && filter['value'].includes((allNodes[nodeId][selectedProp]).toString())) {
+        selectedNodes.push(nodeId)
+      }
+    }
+  }
+  else if (filter['item'] === 'edge'){
+    let allEdges = edges.get({returnType: 'object'});
+    // check if the selected property exists for selected edge and select the nodes connected to the edge
+    for (let edge in allEdges) {
+      if (allEdges[edge][selectedProp] && filter['value'].includes((allEdges[edge][selectedProp]).toString())) {
+        selectedNodes.push(allEdges[edge]['from'])
+        selectedNodes.push(allEdges[edge]['to'])
+      }
+    }
+  }
+  selectNodes(selectedNodes)
+}</script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+            
+            
+            
+            
+            
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tom-select/2.0.0-rc.4/css/tom-select.min.css" integrity="sha512-43fHB3GLgZfz8QXl1RPQ8O66oIgv3po9cJ5erMt1c4QISq9dYb195T3vr5ImnJPXuVroKcGBPXBFKETW8jrPNQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/tom-select/2.0.0-rc.4/js/tom-select.complete.js" integrity="sha512-jeF9CfnvzDiw9G9xiksVjxR2lib44Gnovvkv+3CgCG6NXCD4gqlA5nDAVW5WjpA+i+/zKsUWV5xNEbW1X/HH0Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 800px;
+                 background-color: #222222;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+                <div id="select-menu" class="card-header">
+                    <div class="row no-gutters">
+                        <div class="col-10 pb-2">
+                            <select
+                            class="form-select"
+                            aria-label="Default select example"
+                            onchange="selectNode([value]);"
+                            id="select-node"
+                            placeholder="Select node..."
+                            >
+                                <option selected>Select a Node by ID</option>
+                                
+                                    <option value="Silence">Silence</option>
+                                
+                                    <option value="Architecture">Architecture</option>
+                                
+                                    <option value="Silence-in-Phil">Silence-in-Phil</option>
+                                
+                                    <option value="Global Silence">Global Silence</option>
+                                
+                                    <option value="Anti-Silence">Anti-Silence</option>
+                                
+                                    <option value="Self-Silence">Self-Silence</option>
+                                
+                                    <option value="Global Architecture">Global Architecture</option>
+                                
+                                    <option value="Anti-Architecture">Anti-Architecture</option>
+                                
+                                    <option value="Meta-Architecture">Meta-Architecture</option>
+                                
+                                    <option value="Self-Architecture">Self-Architecture</option>
+                                
+                                    <option value="Viral-in-Bio">Viral-in-Bio</option>
+                                
+                                    <option value="Global Viral">Global Viral</option>
+                                
+                                    <option value="Anti-Viral">Anti-Viral</option>
+                                
+                                    <option value="Self-Viral">Self-Viral</option>
+                                
+                                    <option value="Anti-Silence-in-Phil">Anti-Silence-in-Phil</option>
+                                
+                                    <option value="Self-Silence-in-Phil">Self-Silence-in-Phil</option>
+                                
+                                    <option value="Global Silence-in-Physics">Global Silence-in-Physics</option>
+                                
+                                    <option value="Anti-Global Silence">Anti-Global Silence</option>
+                                
+                                    <option value="Meta-Global Silence">Meta-Global Silence</option>
+                                
+                                    <option value="Anti-Silence-in-Abstract">Anti-Silence-in-Abstract</option>
+                                
+                                    <option value="Meta-Anti-Silence">Meta-Anti-Silence</option>
+                                
+                                    <option value="Meta-Silence-in-Physics">Meta-Silence-in-Physics</option>
+                                
+                                    <option value="Anti-Meta-Silence">Anti-Meta-Silence</option>
+                                
+                                    <option value="Self-Meta-Silence">Self-Meta-Silence</option>
+                                
+                                    <option value="Global Self-Silence">Global Self-Silence</option>
+                                
+                                    <option value="Anti-Self-Silence">Anti-Self-Silence</option>
+                                
+                                    <option value="Self-Self-Silence">Self-Self-Silence</option>
+                                
+                                    <option value="Global Architecture-in-Auto-Detect">Global Architecture-in-Auto-Detect</option>
+                                
+                                    <option value="Meta-Architecture-in-Auto-Detect">Meta-Architecture-in-Auto-Detect</option>
+                                
+                                    <option value="Self-Architecture-in-Auto-Detect">Self-Architecture-in-Auto-Detect</option>
+                                
+                                    <option value="Global Architecture-in-Physics">Global Architecture-in-Physics</option>
+                                
+                                    <option value="Anti-Global Architecture">Anti-Global Architecture</option>
+                                
+                                    <option value="Meta-Global Architecture">Meta-Global Architecture</option>
+                                
+                                    <option value="Self-Global Architecture">Self-Global Architecture</option>
+                                
+                                    <option value="Global Anti-Architecture">Global Anti-Architecture</option>
+                                
+                                    <option value="Meta-Anti-Architecture">Meta-Anti-Architecture</option>
+                                
+                                    <option value="Meta-Architecture-in-Physics">Meta-Architecture-in-Physics</option>
+                                
+                                    <option value="Meta-Meta-Architecture">Meta-Meta-Architecture</option>
+                                
+                                    <option value="Self-Meta-Architecture">Self-Meta-Architecture</option>
+                                
+                                    <option value="Anti-Self-Architecture">Anti-Self-Architecture</option>
+                                
+                                    <option value="Meta-Self-Architecture">Meta-Self-Architecture</option>
+                                
+                                    <option value="Architecture-Silence Hybrid-in-Auto-Detect">Architecture-Silence Hybrid-in-Auto-Detect</option>
+                                
+                                    <option value="Global Architecture-Silence Hybrid">Global Architecture-Silence Hybrid</option>
+                                
+                                    <option value="Meta-Architecture-Silence Hybrid">Meta-Architecture-Silence Hybrid</option>
+                                
+                                    <option value="Self-Architecture-Silence Hybrid">Self-Architecture-Silence Hybrid</option>
+                                
+                                    <option value="Viral-in-Bio-in-Tech">Viral-in-Bio-in-Tech</option>
+                                
+                                    <option value="Anti-Viral-in-Bio">Anti-Viral-in-Bio</option>
+                                
+                                    <option value="Self-Viral-in-Bio">Self-Viral-in-Bio</option>
+                                
+                                    <option value="Viral-Architecture Hybrid">Viral-Architecture Hybrid</option>
+                                
+                                    <option value="Global Global Viral">Global Global Viral</option>
+                                
+                                    <option value="Anti-Global Viral">Anti-Global Viral</option>
+                                
+                                    <option value="Meta-Global Viral">Meta-Global Viral</option>
+                                
+                                    <option value="Viral-Silence Hybrid">Viral-Silence Hybrid</option>
+                                
+                                    <option value="Anti-Viral-in-Auto-Detect">Anti-Viral-in-Auto-Detect</option>
+                                
+                                    <option value="Global Anti-Viral">Global Anti-Viral</option>
+                                
+                                    <option value="Anti-Anti-Viral">Anti-Anti-Viral</option>
+                                
+                                    <option value="Meta-Anti-Viral">Meta-Anti-Viral</option>
+                                
+                                    <option value="Self-Anti-Viral">Self-Anti-Viral</option>
+                                
+                                    <option value="Global Meta-Viral">Global Meta-Viral</option>
+                                
+                                    <option value="Anti-Meta-Viral">Anti-Meta-Viral</option>
+                                
+                                    <option value="Self-Meta-Viral">Self-Meta-Viral</option>
+                                
+                                    <option value="Global Self-Viral">Global Self-Viral</option>
+                                
+                            </select>
+                        </div>
+                        <div class="col-2 pb-2">
+                            <button type="button" class="btn btn-primary btn-block" onclick="neighbourhoodHighlight({nodes: []});">Reset Selection</button>
+                        </div>
+                    </div>
+                </div>
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+                  new TomSelect("#select-node",{
+                      create: false,
+                      sortField: {
+                          field: "text",
+                          direction: "asc"
+                      }
+                  });
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#e2e2e2", "font": {"color": "white"}, "id": "Silence", "label": "Silence", "shape": "dot", "size": 20, "title": "Original: Silence\nResolved: Silence\nDefinition: The absence of sound or noise.\nConfidence: 95%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Architecture", "label": "Architecture", "shape": "dot", "size": 20, "title": "Original: Architecture\nResolved: Architecture\nDefinition: The art and science of designing and constructing buildings.\nConfidence: 96%"}, {"color": "#ffa500", "font": {"color": "white"}, "id": "Silence-in-Phil", "label": "Philosophical Silence", "shape": "dot", "size": 20, "title": "Original: Silence-in-Phil\nResolved: Philosophical Silence\nDefinition: A concept in philosophy referring to periods of quiet contemplation or the absence of discourse.\nConfidence: 85%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Global Silence", "label": "Global Silence", "shape": "dot", "size": 20, "title": "Original: Global Silence\nResolved: Global Silence\nDefinition: The widespread absence of sound across a large area or worldwide.\nConfidence: 88%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Anti-Silence", "label": "Acoustic Absence", "shape": "dot", "size": 20, "title": "Original: Anti-Silence\nResolved: Acoustic Absence\nDefinition: The state or condition of complete auditory silence.\nConfidence: 90%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Self-Silence", "label": "Internal Quiet", "shape": "dot", "size": 20, "title": "Original: Self-Silence\nResolved: Internal Quiet\nDefinition: The internal state of being silent or reflective.\nConfidence: 95%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Global Architecture", "label": "Universal Blueprint", "shape": "dot", "size": 20, "title": "Original: Global Architecture\nResolved: Universal Blueprint\nDefinition: A comprehensive design framework applicable worldwide.\nConfidence: 85%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Anti-Architecture", "label": "Entropy", "shape": "dot", "size": 20, "title": "Original: Anti-Architecture\nResolved: Entropy\nDefinition: A state of disorder or lack of order in a system.\nConfidence: 90%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Architecture", "label": "Metarchitecture", "shape": "dot", "size": 25, "title": "Original: Meta-Architecture\nResolved: Metarchitecture\nDefinition: The study of the higher-order principles governing architectural design and organization.\nConfidence: 85%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Self-Architecture", "label": "Self-Organization", "shape": "dot", "size": 20, "title": "Original: Self-Architecture\nResolved: Self-Organization\nDefinition: A process where structures arise from local interactions among components without central control.\nConfidence: 95%"}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "Viral-in-Bio", "label": "Biological Virality", "shape": "dot", "size": 20, "title": "Original: Viral-in-Bio\nResolved: Biological Virality\nDefinition: The properties and behaviors of viruses within biological systems.\nConfidence: 90%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Global Viral", "label": "Viral Infection", "shape": "dot", "size": 20, "title": "Original: Global Viral\nResolved: Viral Infection\nDefinition: A widespread and highly contagious biological phenomenon.\nConfidence: 95%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Anti-Viral", "label": "Antiviral", "shape": "dot", "size": 20, "title": "Original: Anti-Viral\nResolved: Antiviral\nDefinition: Substances or agents that inhibit the growth of viruses.\nConfidence: 98%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Self-Viral", "label": "Viral Infection (self-propagation)", "shape": "dot", "size": 20, "title": "Original: Self-Viral\nResolved: Viral Infection (self-propagation)\nDefinition: A viral infection that spreads within an organism.\nConfidence: 97%"}, {"color": "#ffa500", "font": {"color": "white"}, "id": "Anti-Silence-in-Phil", "label": "Anti-Silence", "shape": "dot", "size": 20, "title": "Original: Anti-Silence-in-Phil\nResolved: Anti-Silence\nDefinition: A state or condition characterized by the absence of silence.\nConfidence: 95%"}, {"color": "#ffa500", "font": {"color": "white"}, "id": "Self-Silence-in-Phil", "label": "Self-Silence", "shape": "dot", "size": 20, "title": "Original: Self-Silence-in-Phil\nResolved: Self-Silence\nDefinition: The act or condition of being silent within oneself.\nConfidence: 90%"}, {"color": "#eb7df4", "font": {"color": "white"}, "id": "Global Silence-in-Physics", "label": "Cosmic Quiet", "shape": "dot", "size": 20, "title": "Original: Global Silence-in-Physics\nResolved: Cosmic Quiet\nDefinition: A hypothetical state of universal silence or absence of sound in the cosmos.\nConfidence: 60%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Anti-Global Silence", "label": "Universal Resonance", "shape": "dot", "size": 20, "title": "Original: Anti-Global Silence\nResolved: Universal Resonance\nDefinition: The concept of a global counterbalance to silence or emptiness.\nConfidence: 80%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Global Silence", "label": "Transcendent Quietness", "shape": "dot", "size": 25, "title": "Original: Meta-Global Silence\nResolved: Transcendent Quietness\nDefinition: An abstract state beyond mere global silence, implying higher-order silence.\nConfidence: 75%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Anti-Silence-in-Abstract", "label": "Antisilencism", "shape": "dot", "size": 20, "title": "Original: Anti-Silence-in-Abstract\nResolved: Antisilencism\nDefinition: A philosophical or theoretical stance rejecting silence in conceptual frameworks.\nConfidence: 70%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Anti-Silence", "label": "Meta-Antisilence", "shape": "dot", "size": 25, "title": "Original: Meta-Anti-Silence\nResolved: Meta-Antisilence\nDefinition: A higher-order concept negating the denial of silence.\nConfidence: 60%"}, {"color": "#eb7df4", "font": {"color": "white"}, "id": "Meta-Silence-in-Physics", "label": "Meta-Silence-in-Physics", "shape": "dot", "size": 25, "title": "Original: Meta-Silence-in-Physics\nResolved: \nDefinition: \nConfidence: 20%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Anti-Meta-Silence", "label": "Anti-Meta-Silence", "shape": "dot", "size": 25, "title": "Original: Anti-Meta-Silence\nResolved: \nDefinition: \nConfidence: 40%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Self-Meta-Silence", "label": "Silent Reflection", "shape": "dot", "size": 25, "title": "Original: Self-Meta-Silence\nResolved: Silent Reflection\nDefinition: A state of internal contemplation without external expression.\nConfidence: 85%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Global Self-Silence", "label": "Universal Silence", "shape": "dot", "size": 20, "title": "Original: Global Self-Silence\nResolved: Universal Silence\nDefinition: The state of widespread, pervasive silence.\nConfidence: 75%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Anti-Self-Silence", "label": "Proactive Expression", "shape": "dot", "size": 20, "title": "Original: Anti-Self-Silence\nResolved: Proactive Expression\nDefinition: An approach that encourages speaking out against self-censorship.\nConfidence: 80%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Self-Self-Silence", "label": "Self-Silencing Identity", "shape": "dot", "size": 20, "title": "Original: Self-Self-Silence\nResolved: Self-Silencing Identity\nDefinition: A state of self-imposed silence where one\u0027s own voice is muted or suppressed.\nConfidence: 60%"}, {"color": "#c2f5ff", "font": {"color": "white"}, "id": "Global Architecture-in-Auto-Detect", "label": "Global Auto-Detection Architecture", "shape": "dot", "size": 20, "title": "Original: Global Architecture-in-Auto-Detect\nResolved: Global Auto-Detection Architecture\nDefinition: An overarching system that automatically detects and responds to global patterns or anomalies.\nConfidence: 75%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Architecture-in-Auto-Detect", "label": "Meta-Auto-Detection Architecture", "shape": "dot", "size": 25, "title": "Original: Meta-Architecture-in-Auto-Detect\nResolved: Meta-Auto-Detection Architecture\nDefinition: An architecture that oversees and manages other architectures, specifically tailored for auto-detection processes.\nConfidence: 70%"}, {"color": "#c2f5ff", "font": {"color": "white"}, "id": "Self-Architecture-in-Auto-Detect", "label": "Self-Architecture in Auto-Detection", "shape": "dot", "size": 20, "title": "Original: Self-Architecture-in-Auto-Detect\nResolved: Self-Architecture in Auto-Detection\nDefinition: An emergent property where systems autonomously adapt their internal structure.\nConfidence: 60%"}, {"color": "#eb7df4", "font": {"color": "white"}, "id": "Global Architecture-in-Physics", "label": "Global Physics Architecture", "shape": "dot", "size": 20, "title": "Original: Global Architecture-in-Physics\nResolved: Global Physics Architecture\nDefinition: The fundamental structural principles governing the universe\u0027s large-scale organization.\nConfidence: 80%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Anti-Global Architecture", "label": "Anti-Globally Distributed Structure", "shape": "dot", "size": 20, "title": "Original: Anti-Global Architecture\nResolved: Anti-Globally Distributed Structure\nDefinition: A system of constraints or forces that counter global integration.\nConfidence: 70%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Global Architecture", "label": "Metaglobal Structural Framework", "shape": "dot", "size": 25, "title": "Original: Meta-Global Architecture\nResolved: Metaglobal Structural Framework\nDefinition: A higher-order blueprint governing meta-level systems across domains.\nConfidence: 75%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Self-Global Architecture", "label": "Self-Governing System Design", "shape": "dot", "size": 20, "title": "Original: Self-Global Architecture\nResolved: Self-Governing System Design\nDefinition: A system that governs itself on a global scale.\nConfidence: 85%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Global Anti-Architecture", "label": "Open-System Paradigm", "shape": "dot", "size": 20, "title": "Original: Global Anti-Architecture\nResolved: Open-System Paradigm\nDefinition: A system design that avoids rigid structures and promotes openness.\nConfidence: 78%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Anti-Architecture", "label": "Supra-Systemic Unraveling Design", "shape": "dot", "size": 25, "title": "Original: Meta-Anti-Architecture\nResolved: Supra-Systemic Unraveling Design\nDefinition: A design approach that seeks to deconstruct and reframe overarching systems.\nConfidence: 82%"}, {"color": "#eb7df4", "font": {"color": "white"}, "id": "Meta-Architecture-in-Physics", "label": "Meta-Architecture", "shape": "dot", "size": 25, "title": "Original: Meta-Architecture-in-Physics\nResolved: Meta-Architecture\nDefinition: A theoretical framework describing the overarching structures governing physical systems.\nConfidence: 70%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Meta-Architecture", "label": "Meta-Meta-Architecture", "shape": "dot", "size": 30, "title": "Original: Meta-Meta-Architecture\nResolved: Meta-Meta-Architecture\nDefinition: A higher-order system that governs or describes meta-level structures.\nConfidence: 60%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Self-Meta-Architecture", "label": "Self-Meta-Architecture", "shape": "dot", "size": 25, "title": "Original: Self-Meta-Architecture\nResolved: Self-Meta-Architecture\nDefinition: A system that controls and governs its own meta-level processes.\nConfidence: 95%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Anti-Self-Architecture", "label": "Anti-Structure", "shape": "dot", "size": 20, "title": "Original: Anti-Self-Architecture\nResolved: Anti-Structure\nDefinition: A structure or system designed to resist self-modification or control.\nConfidence: 90%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Self-Architecture", "label": "Meta-Self-Architecture", "shape": "dot", "size": 25, "title": "Original: Meta-Self-Architecture\nResolved: \nDefinition: \nConfidence: 10%"}, {"color": "#c2f5ff", "font": {"color": "white"}, "id": "Architecture-Silence Hybrid-in-Auto-Detect", "label": "Auto-Architectural Silence Detection", "shape": "dot", "size": 20, "title": "Original: Architecture-Silence Hybrid-in-Auto-Detect\nResolved: Auto-Architectural Silence Detection\nDefinition: A system that detects architectural elements within audio silence.\nConfidence: 90%"}, {"color": "#c2f5ff", "font": {"color": "white"}, "id": "Global Architecture-Silence Hybrid", "label": "Universal Architectural Silence Integration", "shape": "dot", "size": 20, "title": "Original: Global Architecture-Silence Hybrid\nResolved: Universal Architectural Silence Integration\nDefinition: A global framework for integrating architectural designs with silent zones.\nConfidence: 70%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Architecture-Silence Hybrid", "label": "Metarchitectural Silence Interface", "shape": "dot", "size": 25, "title": "Original: Meta-Architecture-Silence Hybrid\nResolved: Metarchitectural Silence Interface\nDefinition: An interface that mediates between meta-architectural concepts and silent systems.\nConfidence: 85%"}, {"color": "#c2f5ff", "font": {"color": "white"}, "id": "Self-Architecture-Silence Hybrid", "label": "Self-Architectural Silence Integration", "shape": "dot", "size": 20, "title": "Original: Self-Architecture-Silence Hybrid\nResolved: Self-Architectural Silence Integration\nDefinition: A system that integrates architectural features with its own silent operations.\nConfidence: 80%"}, {"color": "#ffff00", "font": {"color": "white"}, "id": "Viral-in-Bio-in-Tech", "label": "Biotechnological Virality", "shape": "dot", "size": 20, "title": "Original: Viral-in-Bio-in-Tech\nResolved: Biotechnological Virality\nDefinition: A concept describing how viral phenomena spread and evolve within technological systems.\nConfidence: 90%"}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "Anti-Viral-in-Bio", "label": "Antiviral Biology", "shape": "dot", "size": 20, "title": "Original: Anti-Viral-in-Bio\nResolved: Antiviral Biology\nDefinition: The study or application of strategies to counteract viral infections within biological systems.\nConfidence: 95%"}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "Self-Viral-in-Bio", "label": "Virocell", "shape": "dot", "size": 20, "title": "Original: Self-Viral-in-Bio\nResolved: Virocell\nDefinition: A self-replicating biological entity that functions like a virus within host cells.\nConfidence: 95%"}, {"color": "#c2f5ff", "font": {"color": "white"}, "id": "Viral-Architecture Hybrid", "label": "Biological Architecture Fusion", "shape": "dot", "size": 25, "title": "Original: Viral-Architecture Hybrid\nResolved: Biological Architecture Fusion\nDefinition: A conceptual design merging viral genetic programming with engineered structural components for bioengineering applications.\nConfidence: 85%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Global Global Viral", "label": "Cosmic Virus", "shape": "dot", "size": 20, "title": "Original: Global Global Viral\nResolved: Cosmic Virus\nDefinition: A hypothetical viral entity believed to exist across the universe, spreading through interstellar media.\nConfidence: 70%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Anti-Global Viral", "label": "Antiviral Globalism", "shape": "dot", "size": 20, "title": "Original: Anti-Global Viral\nResolved: Antiviral Globalism\nDefinition: A theoretical framework opposing global viral threats through coordinated international biosecurity measures.\nConfidence: 90%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Global Viral", "label": "Viral Misinformation", "shape": "dot", "size": 25, "title": "Original: Meta-Global Viral\nResolved: Viral Misinformation\nDefinition: A pervasive, rapidly spreading digital falsehood that leverages network effects and social dynamics.\nConfidence: 92%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Viral-Silence Hybrid", "label": "Silent Information Spread", "shape": "dot", "size": 20, "title": "Original: Viral-Silence Hybrid\nResolved: Silent Information Spread\nDefinition: A communication strategy that suppresses counter-narratives to amplify desired messages.\nConfidence: 78%"}, {"color": "#c2f5ff", "font": {"color": "white"}, "id": "Anti-Viral-in-Auto-Detect", "label": "Intrusion Detection Antivirus", "shape": "dot", "size": 20, "title": "Original: Anti-Viral-in-Auto-Detect\nResolved: Intrusion Detection Antivirus\nDefinition: A security system that identifies and neutralizes threats through automated analysis.\nConfidence: 95%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Global Anti-Viral", "label": "Viral Resistance Movement", "shape": "dot", "size": 20, "title": "Original: Global Anti-Viral\nResolved: Viral Resistance Movement\nDefinition: An organized effort to counteract the spread of harmful digital content on a global scale.\nConfidence: 89%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Anti-Anti-Viral", "label": "Antiviral Resistance", "shape": "dot", "size": 20, "title": "Original: Anti-Anti-Viral\nResolved: Antiviral Resistance\nDefinition: A state or mechanism where viruses develop resistance to antiviral treatments.\nConfidence: 90%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Meta-Anti-Viral", "label": "Meta-Antiviral", "shape": "dot", "size": 25, "title": "Original: Meta-Anti-Viral\nResolved: Meta-Antiviral\nDefinition: An agent that targets and inhibits the effects of antiviral agents or viral response mechanisms.\nConfidence: 85%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Self-Anti-Viral", "label": "Intrinsic Antiviral Defense", "shape": "dot", "size": 20, "title": "Original: Self-Anti-Viral\nResolved: Intrinsic Antiviral Defense\nDefinition: A biological system within an organism that naturally suppresses viral infections without external intervention.\nConfidence: 95%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Global Meta-Viral", "label": "Universal Antiviral Response", "shape": "dot", "size": 25, "title": "Original: Global Meta-Viral\nResolved: Universal Antiviral Response\nDefinition: A coordinated, global-scale mechanism or intervention aimed at controlling widespread viral infections.\nConfidence: 80%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Anti-Meta-Viral", "label": "Entropy", "shape": "dot", "size": 25, "title": "Original: Anti-Meta-Viral\nResolved: Entropy\nDefinition: A measure of disorder or randomness in a system.\nConfidence: 85%"}, {"color": "#7be141", "font": {"color": "white"}, "id": "Self-Meta-Viral", "label": "Autoviral Loop", "shape": "dot", "size": 25, "title": "Original: Self-Meta-Viral\nResolved: Autoviral Loop\nDefinition: A self-replicating system within a larger viral context.\nConfidence: 75%"}, {"color": "#e2e2e2", "font": {"color": "white"}, "id": "Global Self-Viral", "label": "Pandemic Viral Spread", "shape": "dot", "size": 20, "title": "Original: Global Self-Viral\nResolved: Pandemic Viral Spread\nDefinition: The widespread transmission of a virus across global populations.\nConfidence: 90%"}]);
+                  edges = new vis.DataSet([{"from": "Silence", "title": "rotate", "to": "Silence-in-Phil"}, {"from": "Silence", "title": "scale_up", "to": "Global Silence"}, {"from": "Silence", "title": "invert", "to": "Anti-Silence"}, {"from": "Silence", "title": "recurse", "to": "Self-Silence"}, {"from": "Architecture", "title": "scale_up", "to": "Global Architecture"}, {"from": "Architecture", "title": "invert", "to": "Anti-Architecture"}, {"from": "Architecture", "title": "lift", "to": "Meta-Architecture"}, {"from": "Architecture", "title": "recurse", "to": "Self-Architecture"}, {"from": "Silence-in-Phil", "title": "invert", "to": "Anti-Silence-in-Phil"}, {"from": "Silence-in-Phil", "title": "recurse", "to": "Self-Silence-in-Phil"}, {"from": "Global Silence", "title": "rotate", "to": "Global Silence-in-Physics"}, {"from": "Global Silence", "title": "invert", "to": "Anti-Global Silence"}, {"from": "Global Silence", "title": "lift", "to": "Meta-Global Silence"}, {"from": "Anti-Silence", "title": "rotate", "to": "Anti-Silence-in-Abstract"}, {"from": "Anti-Silence", "title": "lift", "to": "Meta-Anti-Silence"}, {"from": "Self-Silence", "title": "scale_up", "to": "Global Self-Silence"}, {"from": "Self-Silence", "title": "invert", "to": "Anti-Self-Silence"}, {"from": "Self-Silence", "title": "recurse", "to": "Self-Self-Silence"}, {"from": "Global Architecture", "title": "rotate", "to": "Global Architecture-in-Physics"}, {"from": "Global Architecture", "title": "invert", "to": "Anti-Global Architecture"}, {"from": "Global Architecture", "title": "lift", "to": "Meta-Global Architecture"}, {"from": "Global Architecture", "title": "recurse", "to": "Self-Global Architecture"}, {"from": "Anti-Architecture", "title": "scale_up", "to": "Global Anti-Architecture"}, {"from": "Anti-Architecture", "title": "lift", "to": "Meta-Anti-Architecture"}, {"from": "Meta-Architecture", "title": "rotate", "to": "Meta-Architecture-in-Physics"}, {"from": "Meta-Architecture", "title": "lift", "to": "Meta-Meta-Architecture"}, {"from": "Meta-Architecture", "title": "recurse", "to": "Self-Meta-Architecture"}, {"from": "Self-Architecture", "title": "invert", "to": "Anti-Self-Architecture"}, {"from": "Self-Architecture", "title": "lift", "to": "Meta-Self-Architecture"}, {"from": "Viral-in-Bio", "title": "rotate", "to": "Viral-in-Bio-in-Tech"}, {"from": "Viral-in-Bio", "title": "invert", "to": "Anti-Viral-in-Bio"}, {"from": "Viral-in-Bio", "title": "recurse", "to": "Self-Viral-in-Bio"}, {"from": "Viral-in-Bio", "title": "blend", "to": "Viral-Architecture Hybrid"}, {"from": "Global Viral", "title": "scale_up", "to": "Global Global Viral"}, {"from": "Global Viral", "title": "invert", "to": "Anti-Global Viral"}, {"from": "Global Viral", "title": "lift", "to": "Meta-Global Viral"}, {"from": "Global Viral", "title": "blend", "to": "Viral-Silence Hybrid"}, {"from": "Anti-Viral", "title": "rotate", "to": "Anti-Viral-in-Auto-Detect"}, {"from": "Anti-Viral", "title": "scale_up", "to": "Global Anti-Viral"}, {"from": "Anti-Viral", "title": "invert", "to": "Anti-Anti-Viral"}, {"from": "Anti-Viral", "title": "lift", "to": "Meta-Anti-Viral"}, {"from": "Anti-Viral", "title": "recurse", "to": "Self-Anti-Viral"}, {"from": "Self-Viral", "title": "scale_up", "to": "Global Self-Viral"}, {"from": "Meta-Anti-Architecture", "title": "blend", "to": "Viral-Architecture Hybrid"}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {"nodes": {"font": {"size": 16, "face": "tahoma"}, "borderWidth": 2}, "edges": {"color": {"inherit": true}, "smooth": {"type": "continuous"}}, "physics": {"forceAtlas2Based": {"gravitationalConstant": -50, "centralGravity": 0.01, "springLength": 100, "springConstant": 0.08}, "minVelocity": 0.75, "solver": "forceAtlas2Based"}};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+                    network.on("selectNode", neighbourhoodHighlight);
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>

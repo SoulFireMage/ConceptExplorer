@@ -1,0 +1,15 @@
+[Unit]
+Description=Concept Explorer - Interactive Concept Mashup Tool
+After=network.target
+
+[Service]
+Type=simple
+User=richard
+WorkingDirectory=/home/richard/shared/ConceptExplorer
+Environment="PATH=/home/richard/shared/ConceptExplorer/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/richard/shared/ConceptExplorer/venv/bin/python concept_explorer.py --port 5059
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

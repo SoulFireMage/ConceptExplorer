@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Concept Explorer - Mash Ideas Together!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .input-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+            flex: 1;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-crystal {
+            background: linear-gradient(135deg, #9b59b6 0%, #3498db 100%);
+            color: white;
+        }
+
+        .btn-crystal:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(155, 89, 182, 0.5);
+        }
+
+        .btn-crystal:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-toggle {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-toggle:hover {
+            background: #138496;
+        }
+
+        .btn-toggle.active {
+            background: #6c757d;
+        }
+
+        .seeds-section {
+            margin-bottom: 20px;
+        }
+
+        .seed-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .seed-item {
+            background: white;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .seed-info {
+            flex: 1;
+        }
+
+        .seed-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .seed-domain {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-left: 10px;
+            background: #667eea;
+            color: white;
+        }
+
+        .seed-props {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .slider-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .generate-section {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .generate-btn {
+            font-size: 20px;
+            padding: 20px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 700;
+        }
+
+        .generate-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        .custom-domain {
+            display: flex;
+            gap: 10px;
+        }
+
+        .custom-domain input {
+            flex: 1;
+        }
+
+        hr {
+            margin: 20px 0;
+            border: none;
+            border-top: 2px solid #ddd;
+        }
+
+        .resolver-section {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            color: white;
+        }
+
+        .resolver-section h3 {
+            color: #9b59b6;
+            margin-bottom: 15px;
+        }
+
+        .resolver-status {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .stat-box {
+            background: rgba(255,255,255,0.1);
+            padding: 10px 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-box .number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .stat-box .label {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .resolver-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .llm-status {
+            background: rgba(255,255,255,0.1);
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .llm-status.configured {
+            border-left: 3px solid #28a745;
+        }
+
+        .llm-status.not-configured {
+            border-left: 3px solid #dc3545;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar.active {
+            display: block;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #9b59b6, #3498db);
+            border-radius: 3px;
+            transition: width 0.3s;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Concept Explorer</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 30px;">
+            Mash concepts together and watch the magic unfold!
+        </p>
+
+        <!-- Input Section -->
+        <div class="input-section">
+            <h3 style="margin-bottom: 15px;">Add Concepts</h3>
+            <div class="form-group">
+                <label>Concept Name</label>
+                <input type="text" id="conceptName" placeholder="e.g., Democracy, Bitcoin, Photosynthesis" autofocus>
+            </div>
+            <div class="form-group">
+                <label>Domain</label>
+                <select id="domain">
+                    {% for d in domains %}
+                    <option value="{{ d }}">{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Properties (optional, comma-separated)</label>
+                <input type="text" id="properties" placeholder="e.g., distributed, transparent, trustless">
+            </div>
+            <div class="button-group">
+                <button class="btn-primary" onclick="addSeed()">➕ Add Concept</button>
+                <button class="btn-secondary" onclick="clearSeeds()">🗑️ Clear All</button>
+            </div>
+
+            <hr>
+
+            <div class="custom-domain">
+                <input type="text" id="newDomain" placeholder="Add custom domain...">
+                <button class="btn-primary" onclick="addDomain()">Add Domain</button>
+            </div>
+        </div>
+
+        <!-- Seeds Display -->
+        <div class="seeds-section">
+            <h3>Active Seeds (<span id="seedCount">0</span>)</h3>
+            <div class="seed-list" id="seedList">
+                <p style="color: #999; text-align: center;">No seeds yet. Add some concepts above!</p>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="slider-group">
+                <label>Expansion Steps: <span id="stepsValue">2</span></label>
+                <input type="range" id="steps" min="1" max="3" value="2" oninput="updateStepsValue()">
+            </div>
+        </div>
+
+        <!-- Generate Button -->
+        <div class="generate-section">
+            <button class="generate-btn" id="generateBtn" onclick="generate()" disabled>
+                🚀 GENERATE CONCEPT GALAXY
+            </button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <!-- Semantic Resolver Section -->
+        <div class="resolver-section" id="resolverSection">
+            <h3>Semantic Resolver</h3>
+            <p style="color: #aaa; margin-bottom: 15px; font-size: 14px;">
+                Transform raw concept mashups into meaningful terms using AI
+            </p>
+
+            <div class="resolver-status" id="resolverStatus">
+                <div class="stat-box">
+                    <div class="number" id="totalConcepts">0</div>
+                    <div class="label">Total Concepts</div>
+                </div>
+                <div class="stat-box">
+                    <div class="number" id="resolvedCount">0</div>
+                    <div class="label">Resolved</div>
+                </div>
+                <div class="stat-box">
+                    <div class="number" id="keptCount" style="color: #28a745;">0</div>
+                    <div class="label">Kept</div>
+                </div>
+                <div class="stat-box">
+                    <div class="number" id="discardedCount" style="color: #dc3545;">0</div>
+                    <div class="label">Discarded</div>
+                </div>
+            </div>
+
+            <div class="llm-status" id="llmStatus">
+                Loading LLM status...
+            </div>
+
+            <div class="resolver-controls" style="margin-top: 15px;">
+                <button class="btn-crystal" id="crystallizeBtn" onclick="crystallize()" disabled>
+                    Crystallize Concepts
+                </button>
+                <button class="btn-toggle" id="toggleDiscardedBtn" onclick="toggleDiscarded()">
+                    Show Discarded
+                </button>
+                <button class="btn-secondary" onclick="clearResolutions()">
+                    Reset to Raw
+                </button>
+                <button class="btn-primary" onclick="testLLM()">
+                    Test LLM
+                </button>
+            </div>
+
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-bar-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Save/Load Section -->
+        <div class="input-section" style="margin-top: 20px;">
+            <h3 style="margin-bottom: 15px;">Save/Load Concept Maps</h3>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                <input type="text" id="saveFilename" placeholder="Enter a name for your map..." style="flex: 1; min-width: 200px;">
+                <button class="btn-success" onclick="saveMap()">Save Map</button>
+            </div>
+
+            <div id="savedMapsList" style="background: #e9ecef; padding: 10px; border-radius: 5px; max-height: 200px; overflow-y: auto;">
+                <p style="color: #666; text-align: center;">Loading saved maps...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let seeds = [];
+
+        // Add seed via Enter key
+        document.getElementById('conceptName').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addSeed();
+        });
+        document.getElementById('properties').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addSeed();
+        });
+
+        function updateStepsValue() {
+            document.getElementById('stepsValue').textContent = document.getElementById('steps').value;
+        }
+
+        async function addSeed() {
+            const name = document.getElementById('conceptName').value.trim();
+            const domain = document.getElementById('domain').value;
+            const properties = document.getElementById('properties').value.trim();
+
+            if (!name) {
+                showStatus('Please enter a concept name!', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/add_seed', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, domain, properties})
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    // Clear inputs
+                    document.getElementById('conceptName').value = '';
+                    document.getElementById('properties').value = '';
+                    document.getElementById('conceptName').focus();
+
+                    await loadSeeds();
+                    showStatus('Concept added!', 'success');
+                    setTimeout(() => hideStatus(), 2000);
+                } else {
+                    showStatus(data.error || 'Failed to add seed', 'error');
+                }
+            } catch (error) {
+                showStatus('Error adding seed', 'error');
+            }
+        }
+
+        async function loadSeeds() {
+            try {
+                const response = await fetch('/get_seeds');
+                seeds = await response.json();
+                renderSeeds();
+            } catch (error) {
+                console.error('Error loading seeds:', error);
+            }
+        }
+
+        function renderSeeds() {
+            const list = document.getElementById('seedList');
+            const count = document.getElementById('seedCount');
+            const generateBtn = document.getElementById('generateBtn');
+
+            count.textContent = seeds.length;
+            generateBtn.disabled = seeds.length === 0;
+
+            if (seeds.length === 0) {
+                list.innerHTML = '<p style="color: #999; text-align: center;">No seeds yet. Add some concepts above!</p>';
+                return;
+            }
+
+            list.innerHTML = seeds.map((seed, index) => `
+                <div class="seed-item">
+                    <div class="seed-info">
+                        <div>
+                            <span class="seed-name">${seed.name}</span>
+                            <span class="seed-domain">${seed.domain}</span>
+                        </div>
+                        <div class="seed-props">${seed.properties.slice(0, 5).join(', ')}${seed.properties.length > 5 ? '...' : ''}</div>
+                    </div>
+                    <button class="btn-danger" onclick="deleteSeed(${index})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        async function deleteSeed(index) {
+            try {
+                const response = await fetch(`/delete_seed/${index}`, {method: 'DELETE'});
+                if (response.ok) {
+                    await loadSeeds();
+                }
+            } catch (error) {
+                showStatus('Error deleting seed', 'error');
+            }
+        }
+
+        async function clearSeeds() {
+            if (!confirm('Clear all seeds?')) return;
+            try {
+                await fetch('/clear', {method: 'POST'});
+                await loadSeeds();
+                showStatus('All seeds cleared', 'success');
+                setTimeout(() => hideStatus(), 2000);
+            } catch (error) {
+                showStatus('Error clearing seeds', 'error');
+            }
+        }
+
+        async function addDomain() {
+            const domain = document.getElementById('newDomain').value.trim();
+            if (!domain) return;
+
+            try {
+                const response = await fetch('/add_domain', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({domain})
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const select = document.getElementById('domain');
+                    const option = document.createElement('option');
+                    option.value = domain;
+                    option.textContent = domain;
+                    select.appendChild(option);
+                    select.value = domain;
+                    document.getElementById('newDomain').value = '';
+                    showStatus('Domain added!', 'success');
+                    setTimeout(() => hideStatus(), 2000);
+                }
+            } catch (error) {
+                showStatus('Error adding domain', 'error');
+            }
+        }
+
+        async function generate() {
+            const steps = parseInt(document.getElementById('steps').value);
+            const generateBtn = document.getElementById('generateBtn');
+
+            generateBtn.disabled = true;
+            generateBtn.textContent = '⚙️ GENERATING...';
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({steps})
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    window.open('/view', '_blank');
+                    showStatus('Galaxy generated! Opening in new tab...', 'success');
+                } else {
+                    showStatus(data.error || 'Failed to generate', 'error');
+                }
+            } catch (error) {
+                showStatus('Error generating galaxy', 'error');
+            } finally {
+                generateBtn.disabled = seeds.length === 0;
+                generateBtn.textContent = '🚀 GENERATE CONCEPT GALAXY';
+            }
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+
+        function hideStatus() {
+            document.getElementById('status').className = 'status';
+        }
+
+        // ==========================================
+        // Resolver Functions
+        // ==========================================
+        let hasGraph = false;
+        let showDiscarded = true;
+
+        async function loadLLMStatus() {
+            try {
+                const response = await fetch('/api/llm/status');
+                const data = await response.json();
+
+                const statusEl = document.getElementById('llmStatus');
+                const provider = data.current_provider;
+                const isConfigured = data.configured[provider];
+
+                if (isConfigured) {
+                    const displayName = data.providers[provider]?.display_name || provider;
+                    const model = data.current_model || data.providers[provider]?.default_model || 'default';
+                    statusEl.textContent = `LLM: ${displayName} (${model})`;
+                    statusEl.className = 'llm-status configured';
+                } else {
+                    statusEl.textContent = `LLM: ${provider} - Not configured (check .env file)`;
+                    statusEl.className = 'llm-status not-configured';
+                }
+            } catch (error) {
+                document.getElementById('llmStatus').textContent = 'Error loading LLM status';
+                document.getElementById('llmStatus').className = 'llm-status not-configured';
+            }
+        }
+
+        async function loadResolverStatus() {
+            try {
+                const response = await fetch('/api/resolve/status');
+                const data = await response.json();
+
+                hasGraph = data.has_graph;
+                showDiscarded = data.show_discarded;
+
+                document.getElementById('totalConcepts').textContent = data.total_concepts;
+                document.getElementById('resolvedCount').textContent = data.resolved_count;
+                document.getElementById('keptCount').textContent = data.kept_count;
+                document.getElementById('discardedCount').textContent = data.discarded_count;
+
+                // Enable crystallize button if we have a graph
+                document.getElementById('crystallizeBtn').disabled = !hasGraph;
+
+                // Update toggle button state
+                const toggleBtn = document.getElementById('toggleDiscardedBtn');
+                toggleBtn.textContent = showDiscarded ? 'Hide Discarded' : 'Show Discarded';
+                toggleBtn.className = showDiscarded ? 'btn-toggle' : 'btn-toggle active';
+            } catch (error) {
+                console.error('Error loading resolver status:', error);
+            }
+        }
+
+        async function crystallize() {
+            const btn = document.getElementById('crystallizeBtn');
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+
+            btn.disabled = true;
+            btn.textContent = 'Crystallizing...';
+            progressBar.className = 'progress-bar active';
+            progressFill.style.width = '30%';
+
+            try {
+                const response = await fetch('/api/resolve/crystallize', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                progressFill.style.width = '90%';
+
+                const data = await response.json();
+
+                if (data.success) {
+                    progressFill.style.width = '100%';
+                    const kept = data.resolved?.filter(r => r.status === 'KEEP').length || 0;
+                    const discarded = data.resolved?.filter(r => r.status === 'DISCARD').length || 0;
+                    showStatus(`Crystallized! ${kept} kept, ${discarded} discarded. Refresh the graph view.`, 'success');
+
+                    // Reload status
+                    await loadResolverStatus();
+                } else {
+                    showStatus(data.error || 'Crystallization failed', 'error');
+                }
+            } catch (error) {
+                showStatus('Error during crystallization: ' + error.message, 'error');
+            } finally {
+                btn.disabled = !hasGraph;
+                btn.textContent = 'Crystallize Concepts';
+                progressBar.className = 'progress-bar';
+                progressFill.style.width = '0%';
+            }
+        }
+
+        async function toggleDiscarded() {
+            try {
+                const response = await fetch('/api/resolve/toggle_discarded', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showDiscarded = data.show_discarded;
+                    const toggleBtn = document.getElementById('toggleDiscardedBtn');
+                    toggleBtn.textContent = showDiscarded ? 'Hide Discarded' : 'Show Discarded';
+                    toggleBtn.className = showDiscarded ? 'btn-toggle' : 'btn-toggle active';
+                    showStatus(`Discarded concepts ${showDiscarded ? 'shown' : 'hidden'}. Refresh graph view.`, 'success');
+                    setTimeout(() => hideStatus(), 2000);
+                }
+            } catch (error) {
+                showStatus('Error toggling discarded visibility', 'error');
+            }
+        }
+
+        async function clearResolutions() {
+            if (!confirm('Reset to raw concepts? This will remove all resolutions.')) return;
+
+            try {
+                await fetch('/api/resolve/clear', { method: 'POST' });
+                await loadResolverStatus();
+                showStatus('Reset to raw concepts. Refresh graph view.', 'success');
+                setTimeout(() => hideStatus(), 2000);
+            } catch (error) {
+                showStatus('Error clearing resolutions', 'error');
+            }
+        }
+
+        async function testLLM() {
+            showStatus('Testing LLM connection...', 'success');
+
+            try {
+                const response = await fetch('/api/llm/test', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus(`LLM OK! Response: "${data.response}" (${data.model})`, 'success');
+                } else {
+                    showStatus(`LLM Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('Error testing LLM: ' + error.message, 'error');
+            }
+        }
+
+        // Override generate to also update resolver status
+        const originalGenerate = generate;
+        generate = async function() {
+            await originalGenerate.apply(this, arguments);
+            await loadResolverStatus();
+        };
+
+        // ==========================================
+        // Save/Load Functions
+        // ==========================================
+        async function loadSavedMaps() {
+            try {
+                const response = await fetch('/api/maps/list');
+                const data = await response.json();
+
+                const listEl = document.getElementById('savedMapsList');
+
+                if (data.maps.length === 0) {
+                    listEl.innerHTML = '<p style="color: #666; text-align: center;">No saved maps yet.</p>';
+                    return;
+                }
+
+                listEl.innerHTML = data.maps.map(map => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; margin-bottom: 5px; border-radius: 5px;">
+                        <div>
+                            <strong>${map.filename}</strong>
+                            <span style="color: #666; font-size: 12px; margin-left: 10px;">
+                                ${map.concept_count} concepts, ${map.resolution_count} resolved
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 5px;">
+                            <button class="btn-primary" style="padding: 5px 10px; font-size: 12px;" onclick="loadMap('${map.filename}')">Load</button>
+                            <button class="btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="deleteMap('${map.filename}')">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                document.getElementById('savedMapsList').innerHTML = '<p style="color: #dc3545;">Error loading saved maps</p>';
+            }
+        }
+
+        async function saveMap() {
+            const filename = document.getElementById('saveFilename').value.trim();
+
+            try {
+                const response = await fetch('/api/maps/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({filename})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus(`Saved as "${data.filename}" (${data.concept_count} concepts)`, 'success');
+                    document.getElementById('saveFilename').value = '';
+                    await loadSavedMaps();
+                } else {
+                    showStatus(data.error || 'Save failed', 'error');
+                }
+            } catch (error) {
+                showStatus('Error saving map: ' + error.message, 'error');
+            }
+        }
+
+        async function loadMap(filename) {
+            if (!confirm(`Load "${filename}"? This will replace your current work.`)) return;
+
+            try {
+                const response = await fetch('/api/maps/load', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({filename})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus(`Loaded "${filename}" (${data.concept_count} concepts). Open graph view to see it.`, 'success');
+                    await loadSeeds();
+                    await loadResolverStatus();
+                } else {
+                    showStatus(data.error || 'Load failed', 'error');
+                }
+            } catch (error) {
+                showStatus('Error loading map: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteMap(filename) {
+            if (!confirm(`Delete "${filename}"? This cannot be undone.`)) return;
+
+            try {
+                const response = await fetch('/api/maps/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({filename})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus(`Deleted "${filename}"`, 'success');
+                    await loadSavedMaps();
+                    setTimeout(() => hideStatus(), 2000);
+                } else {
+                    showStatus(data.error || 'Delete failed', 'error');
+                }
+            } catch (error) {
+                showStatus('Error deleting map: ' + error.message, 'error');
+            }
+        }
+
+        // Load seeds and resolver status on page load
+        loadSeeds();
+        loadLLMStatus();
+        loadResolverStatus();
+        loadSavedMaps();
+    </script>
+</body>
+</html>
