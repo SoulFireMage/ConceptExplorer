@@ -1,5 +1,6 @@
 import json
 import random
+import re
 import requests
 import networkx as nx
 from pyvis.network import Network
@@ -44,8 +45,9 @@ class AutoSeeder:
         session = cls.get_session()
         try:
             for rel in ["rel_jjb", "rel_trg"]:
-                url = f"https://api.datamuse.com/words?{rel}={concept_name}&max=5"
-                data = session.get(url, timeout=5).json()
+                # params= URL-encodes the name, so "R&D" or "C++" stay intact
+                data = session.get("https://api.datamuse.com/words",
+                                   params={rel: concept_name, "max": 5}, timeout=5).json()
                 for item in data:
                     props.add(item['word'])
         except Exception:
@@ -56,8 +58,12 @@ class AutoSeeder:
     def guess_domain(props: Set[str]) -> str:
         scores = {k: 0 for k in AutoSeeder.DOMAIN_KEYWORDS}
         for p in props:
+            # Match whole words (plus a plural "s"), not substrings:
+            # "cell" should not match "excellent", nor "law" match "flawed"
+            words = set(re.findall(r"[a-z]+", p.lower()))
+            words |= {w[:-1] for w in words if w.endswith("s")}
             for domain, keywords in AutoSeeder.DOMAIN_KEYWORDS.items():
-                if any(k in p for k in keywords):
+                if words & keywords:
                     scores[domain] += 1
         best_domain = max(scores, key=scores.get)
         return best_domain if scores[best_domain] > 0 else "General"
@@ -356,13 +362,19 @@ def generate():
     global last_generated_viz, resolved_concepts
 
     data = request.json
-    steps = data.get('steps', 2)
+    try:
+        steps = min(max(int(data.get('steps', 2)), 1), 3)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'steps must be a number from 1 to 3'}), 400
 
     if not seeds:
         return jsonify({'error': 'No seeds added'}), 400
 
+    # "Auto-Detect" is a menu choice, not a domain to rotate concepts into
+    real_domains = [d for d in domains if d != "Auto-Detect"]
+
     viz = VisualGEE()
-    viz.run(seeds, domains, steps=steps)
+    viz.run(seeds, real_domains, steps=steps)
     viz.save_viz('static/concept_graph.html')
 
     # Store for later resolution
@@ -847,9 +859,12 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=5059, help='Port to run the server on')
+    parser.add_argument('--host', default='0.0.0.0', help='Interface to listen on (0.0.0.0 = whole network)')
+    parser.add_argument('--debug', action='store_true',
+                        help='Flask debug mode. Its debugger can run code, so only use it with --host 127.0.0.1')
     args = parser.parse_args()
 
     os.makedirs('static', exist_ok=True)
     print(f"\n🧠 Concept Explorer starting on http://localhost:{args.port}")
     print("Press Ctrl+C to stop\n")
-    app.run(debug=True, host='0.0.0.0', port=args.port)
+    app.run(debug=args.debug, host=args.host, port=args.port)

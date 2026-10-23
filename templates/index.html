@@ -501,6 +501,14 @@
     <script>
         let seeds = [];
 
+        // Seeds come from any browser on the network and from Datamuse, so
+        // escape them before they go into innerHTML.
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[ch]);
+        }
+
         // Add seed via Enter key
         document.getElementById('conceptName').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') addSeed();
@@ -575,10 +583,10 @@
                 <div class="seed-item">
                     <div class="seed-info">
                         <div>
-                            <span class="seed-name">${seed.name}</span>
-                            <span class="seed-domain">${seed.domain}</span>
+                            <span class="seed-name">${escapeHtml(seed.name)}</span>
+                            <span class="seed-domain">${escapeHtml(seed.domain)}</span>
                         </div>
-                        <div class="seed-props">${seed.properties.slice(0, 5).join(', ')}${seed.properties.length > 5 ? '...' : ''}</div>
+                        <div class="seed-props">${escapeHtml(seed.properties.slice(0, 5).join(', '))}${seed.properties.length > 5 ? '...' : ''}</div>
                     </div>
                     <button class="btn-danger" onclick="deleteSeed(${index})">✕</button>
                 </div>
