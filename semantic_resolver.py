@@ -33,7 +33,8 @@ INSTRUCTIONS:
    - If it matches a specific real-world term, return that term (e.g., "Anti-Structure" -> "Entropy").
    - If it is a valid but abstract compound, refine the name to sound standard (e.g., "Time-Loop-Recursive" -> "Closed Timelike Curve").
    - If it is a novel/creative metaphor that makes sense, give it a cool name (e.g., "Social-Toxin-Network" -> "Viral Misinformation").
-   - If it is redundant, contradictory, or meaningless (e.g., "Anti-Anti-Time", "Water-Fire-Hybrid"), mark it as DISCARD.
+   - If it is redundant, contradictory, or meaningless (e.g., "Global Global Global Chair", "Water-Fire-Hybrid"), mark it as DISCARD.
+   - A repeated prefix is not rubbish by itself: keep it when the repetition means something (e.g., "Anti-Anti-Viral" -> "Antiviral Resistance").
 
 OUTPUT FORMAT:
 Return ONLY a valid JSON object with no markdown formatting:
@@ -57,7 +58,8 @@ INSTRUCTIONS:
    - If it matches a real-world term, return that term (e.g., "Anti-Structure" -> "Entropy")
    - If it's a valid abstract compound, refine to standard terminology (e.g., "Time-Loop-Recursive" -> "Closed Timelike Curve")
    - If it's a creative metaphor that makes sense, give it a cool name (e.g., "Social-Toxin-Network" -> "Viral Misinformation")
-   - If redundant, contradictory, or meaningless (e.g., "Anti-Anti-Time"), mark as DISCARD
+   - If redundant, contradictory, or meaningless (e.g., "Global Global Global Chair"), mark as DISCARD
+   - A repeated prefix is not rubbish by itself: keep it when the repetition means something (e.g., "Anti-Anti-Viral" -> "Antiviral Resistance")
 
 OUTPUT FORMAT:
 Return ONLY a valid JSON array with no markdown formatting. Each element must have:

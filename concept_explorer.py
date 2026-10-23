@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import List, Set, Dict, Optional
 from flask import Flask, render_template, request, jsonify, send_file
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -20,13 +21,21 @@ from semantic_resolver import SemanticResolver, ResolvedConcept
 # 1. AUTO-SEEDER
 # ==========================================
 class AutoSeeder:
+    # Nouns plus their adjectives: Datamuse describes concepts with
+    # adjectives ("political", "infectious"), so nouns alone rarely match
     DOMAIN_KEYWORDS = {
-        "Bio": {"life", "cell", "organic", "body", "nature", "living", "genetic", "viral", "evolution", "species"},
-        "Tech": {"computer", "digital", "silicon", "electronic", "code", "data", "cyber", "machine", "robot", "network"},
-        "Physics": {"energy", "matter", "space", "time", "force", "quantum", "gravity", "light", "particle", "chaos", "thermodynamics"},
-        "Social": {"human", "society", "people", "culture", "politics", "law", "community", "mind", "group", "consciousness", "history"},
-        "Phil": {"truth", "logic", "reason", "moral", "abstract", "thought", "existential", "meaning", "philosophy"},
-        "Abstract": {"math", "number", "geometry", "fractal", "recursion", "pattern", "infinite", "set", "theory"},
+        "Bio": {"life", "cell", "organic", "body", "nature", "living", "genetic", "viral", "evolution", "species",
+                "biological", "cellular", "infectious", "pathogenic", "virus", "virion", "natural", "evolutionary"},
+        "Tech": {"computer", "digital", "silicon", "electronic", "code", "data", "cyber", "machine", "robot", "network",
+                 "technological", "computational", "software", "programmer", "algorithmic", "mechanical"},
+        "Physics": {"energy", "matter", "space", "time", "force", "quantum", "gravity", "light", "particle", "chaos", "thermodynamics",
+                    "physical", "atomic", "thermal", "kinetic", "gravitational", "electromagnetic", "nuclear"},
+        "Social": {"human", "society", "people", "culture", "politics", "law", "community", "mind", "group", "consciousness", "history",
+                   "social", "political", "cultural", "legal", "parliamentary", "economic", "democratic", "historical"},
+        "Phil": {"truth", "logic", "reason", "moral", "abstract", "thought", "existential", "meaning", "philosophy",
+                 "ethical", "logical", "philosophical", "metaphysical", "rational"},
+        "Abstract": {"math", "number", "geometry", "fractal", "recursion", "pattern", "infinite", "set", "theory",
+                     "mathematical", "geometric", "numerical", "recursive", "theoretical"},
         "General": {"object", "thing", "generic"}
     }
 
@@ -55,66 +64,193 @@ class AutoSeeder:
         return props
 
     @staticmethod
+    def words(text: str) -> Set[str]:
+        """Whole words of a property, plus their singulars ("robots" -> "robot")"""
+        words = set(re.findall(r"[a-z]+", text.lower()))
+        return words | {w[:-1] for w in words if w.endswith("s")}
+
+    @staticmethod
+    def domain_affinity(props: Set[str], domain: str) -> int:
+        """How many properties use one of the domain's keywords"""
+        keywords = AutoSeeder.DOMAIN_KEYWORDS.get(domain, set())
+        return sum(1 for p in props if AutoSeeder.words(p) & keywords)
+
+    @staticmethod
     def guess_domain(props: Set[str]) -> str:
-        scores = {k: 0 for k in AutoSeeder.DOMAIN_KEYWORDS}
-        for p in props:
-            # Match whole words (plus a plural "s"), not substrings:
-            # "cell" should not match "excellent", nor "law" match "flawed"
-            words = set(re.findall(r"[a-z]+", p.lower()))
-            words |= {w[:-1] for w in words if w.endswith("s")}
-            for domain, keywords in AutoSeeder.DOMAIN_KEYWORDS.items():
-                if words & keywords:
-                    scores[domain] += 1
+        # Whole words, not substrings: "cell" should not match "excellent"
+        scores = {d: AutoSeeder.domain_affinity(props, d) for d in AutoSeeder.DOMAIN_KEYWORDS}
         best_domain = max(scores, key=scores.get)
         return best_domain if scores[best_domain] > 0 else "General"
+
+
+class Antonyms:
+    """
+    Antonyms from Datamuse, looked up before a graph is generated so that
+    generating makes no network calls. The commonest antonym wins
+    ("liberal" -> "conservative", not "conservativist").
+    """
+    _cache: Dict[str, Optional[str]] = {}
+
+    @classmethod
+    def opposite(cls, word: str) -> Optional[str]:
+        return cls._cache.get(word)
+
+    @classmethod
+    def warm(cls, words: Set[str]):
+        """Look up words not seen yet, then their antonyms too, so Anti-Anti can swap back"""
+        for _ in range(2):
+            todo = [w for w in words if w not in cls._cache]
+            if not todo:
+                return
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for word, (ok, ant) in zip(todo, pool.map(cls._fetch, todo)):
+                    if ok:  # a failed lookup isn't cached, so it's tried again next time
+                        cls._cache[word] = ant
+            words = {a for a in (cls._cache.get(w) for w in todo) if a}
+
+    @staticmethod
+    def _fetch(word: str):
+        try:
+            data = AutoSeeder.get_session().get(
+                "https://api.datamuse.com/words",
+                params={"rel_ant": word, "md": "f", "max": 10}, timeout=5).json()
+        except Exception:
+            return False, None
+
+        def frequency(item):
+            tags = [t for t in item.get("tags", []) if t.startswith("f:")]
+            return float(tags[0][2:]) if tags else 0.0
+
+        best = max(data, key=frequency, default=None)
+        return True, (best["word"] if best else None)
 
 # ==========================================
 # 2. CORE LOGIC
 # ==========================================
+# Tags the operators add. They record what was done, not what a concept is,
+# so they're left out when properties are compared or inverted.
+OP_TAGS = {"systemic", "inverted", "abstract", "recursive", "loop"}
+
+
+def semantic_props(props: Set[str]) -> Set[str]:
+    return {p for p in props if p not in OP_TAGS and not p.startswith("applied-to-")}
+
+
+# "Same as" rules applied while generating, before the LLM sees anything.
+# Repeats are kept by default: the resolver sometimes finds real ideas in
+# them ("Anti-Anti-Viral" -> "Antiviral Resistance", "Global Global Viral"
+# -> "Cosmic Virus"). Switch a rule on to stop building that kind of name.
+RULES = {
+    "rotate_replaces_domain": True,   # X-in-Bio-in-Tech becomes X-in-Tech
+    "skip_double_invert": False,      # never build Anti-Anti-X
+    "skip_repeat_scale": False,       # never build Global Global X
+    "skip_repeat_recurse": False,     # never build Self-Self-X
+}
+
+
 @dataclass
 class Concept:
     name: str
     domain: str
     properties: Set[str]
     dimension: int = 1
+    # Lineage, so operators don't have to parse names back apart
+    roots: Optional[frozenset] = None  # seed names this concept descends from
+    base: str = ""       # the name without unary prefixes or rotation
+    outer: str = ""      # the last unary prefix applied, e.g. "Anti-"
+    unrotated: str = ""  # the name before its rotation suffix
+    home: str = ""       # the domain before rotation
     id: str = field(init=False)
-    def __post_init__(self): self.id = self.name
-    def to_dict(self): return {"name": self.name, "domain": self.domain, "properties": list(self.properties), "dimension": self.dimension}
 
-def op_scale_up(c): return Concept(f"Global {c.name}", c.domain, c.properties.union({"systemic"}), c.dimension)
-def op_invert(c): return Concept(f"Anti-{c.name}", c.domain, c.properties.union({"inverted"}), c.dimension)
-def op_lift(c): return Concept(f"Meta-{c.name}", "Abstract", c.properties.union({"abstract"}), c.dimension + 1)
-def op_recurse(c): return Concept(f"Self-{c.name}", c.domain, c.properties.union({"recursive", "loop"}), c.dimension)
+    def __post_init__(self):
+        self.id = self.name
+        self.roots = frozenset(self.roots) if self.roots else frozenset({self.name})
+        self.base = self.base or self.name
+        self.unrotated = self.unrotated or self.name
+        self.home = self.home or self.domain
+
+    def to_dict(self):
+        return {"name": self.name, "domain": self.domain, "properties": list(self.properties),
+                "dimension": self.dimension, "roots": sorted(self.roots), "base": self.base,
+                "outer": self.outer, "unrotated": self.unrotated, "home": self.home}
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(name=d['name'], domain=d['domain'], properties=set(d.get('properties', [])),
+                   dimension=d.get('dimension', 1), roots=d.get('roots'), base=d.get('base', ''),
+                   outer=d.get('outer', ''), unrotated=d.get('unrotated', ''), home=d.get('home', ''))
+
+
+def _unary(c, prefix, props, domain=None, dimension=None):
+    domain = domain or c.domain
+    # Bracket a hybrid, so "Global (Global X-Y Hybrid)" doesn't read as a repeat
+    wrap = (lambda n: f"({n})") if len(c.roots) > 1 else (lambda n: n)
+    return Concept(f"{prefix}{wrap(c.name)}", domain, props, dimension or c.dimension,
+                   roots=c.roots, base=c.base, outer=prefix,
+                   unrotated=prefix + wrap(c.unrotated), home=domain)
+
+
+def op_scale_up(c): return _unary(c, "Global ", c.properties | {"systemic"})
+
+
+def op_invert(c):
+    # Swap each property for its antonym where one is known: Anti-Democracy
+    # is conservative where Democracy is liberal
+    meaning = semantic_props(c.properties)
+    flipped = {Antonyms.opposite(p) or p for p in meaning}
+    return _unary(c, "Anti-", flipped | (c.properties - meaning) | {"inverted"})
+
+
+def op_lift(c): return _unary(c, "Meta-", c.properties | {"abstract"}, domain="Abstract", dimension=c.dimension + 1)
+def op_recurse(c): return _unary(c, "Self-", c.properties | {"recursive", "loop"})
+
+
 def op_rotate(c, all_domains):
-    available = [d for d in all_domains if d != c.domain]
-    new_dom = random.choice(available) if available else "General"
-    return Concept(f"{c.name}-in-{new_dom}", new_dom, c.properties.union({f"applied-to-{new_dom}"}), c.dimension)
+    """
+    Apply the concept to another domain, preferring domains its properties
+    already point at (an analogy) without ruling the others out.
+    """
+    replace = RULES["rotate_replaces_domain"]
+    available = [d for d in all_domains if d != c.domain and not (replace and d == c.home)]
+    if not available:
+        available = ["General"]
+    meaning = semantic_props(c.properties)
+    weights = [1 + 3 * AutoSeeder.domain_affinity(meaning, d) for d in available]
+    new_dom = random.choices(available, weights)[0]
+
+    stem = c.unrotated if replace else c.name
+    props = {p for p in c.properties if not (replace and p.startswith("applied-to-"))}
+    return Concept(f"{stem}-in-{new_dom}", new_dom, props | {f"applied-to-{new_dom}"}, c.dimension,
+                   roots=c.roots, base=c.base, outer=c.outer, unrotated=c.unrotated, home=c.home)
+
+
 def op_blend(c1, c2):
-    # Avoid self-blending
-    if c1.name == c2.name:
+    # Concepts from the same seed can't blend: Anti-X with Meta-X is still X
+    if c1.roots & c2.roots:
         return None
 
     dom = f"{c1.domain}-{c2.domain}" if c1.domain != c2.domain else c1.domain
 
-    # Strip prefixes to find the root concept name
-    def strip_prefixes(n):
-        for prefix in ["Global ", "Anti-", "Meta-", "Self-"]:
-            n = n.replace(prefix, "")
-        # Also strip "-in-Domain" suffixes and "Hybrid" suffix
-        if "-in-" in n:
-            n = n.split("-in-")[0]
-        n = n.replace(" Hybrid", "")
-        return n.strip()
+    # Keep each side's last prefix, so Anti-Democracy + Bitcoin doesn't
+    # collapse into the same hybrid as Democracy + Bitcoin
+    base = f"{c1.outer}{c1.base}-{c2.outer}{c2.base}"
+    name = f"{base} Hybrid"
+    return Concept(name, dom, c1.properties | c2.properties, max(c1.dimension, c2.dimension),
+                   roots=c1.roots | c2.roots, base=base, unrotated=name)
 
-    n1 = strip_prefixes(c1.name)
-    n2 = strip_prefixes(c2.name)
 
-    # Check if they are actually the same root
-    if n1 == n2:
+def choose_partner(c, concepts):
+    """A blend partner from another seed, favouring shared properties"""
+    others = [p for p in concepts if not (p.roots & c.roots)]
+    if not others:
         return None
+    mine = semantic_props(c.properties)
+    weights = [1 + 2 * len(mine & semantic_props(p.properties)) for p in others]
+    return random.choices(others, weights)[0]
 
-    new_name = f"{n1}-{n2} Hybrid"
-    return Concept(new_name, dom, c1.properties.union(c2.properties), max(c1.dimension, c2.dimension))
+
+# Operators a rule can switch off, by the prefix they would repeat
+SKIP_RULES = {"Anti-": "skip_double_invert", "Global ": "skip_repeat_scale", "Self-": "skip_repeat_recurse"}
 
 # ==========================================
 # 3. VISUALIZER
@@ -123,7 +259,7 @@ class VisualGEE:
     def __init__(self):
         self.graph = nx.DiGraph()
         self.concepts = {}
-        self.unary_ops = [op_scale_up, op_invert, op_lift, op_recurse]
+        self.unary_ops = [(op_scale_up, "Global "), (op_invert, "Anti-"), (op_lift, "Meta-"), (op_recurse, "Self-")]
         self.colors = {"Bio": "#97c2fc", "Tech": "#ffff00", "Social": "#fb7e81", "Physics": "#eb7df4", "Abstract": "#7be141", "Phil": "#ffa500", "General": "#e2e2e2"}
 
     def add_concept(self, c: Concept):
@@ -132,7 +268,9 @@ class VisualGEE:
             color = self.colors.get(c.domain, "#c2f5ff")
             self.graph.add_node(c.name, label=c.name, title=f"Props: {list(c.properties)}", color=color, size=15+(c.dimension*5))
 
-    def run(self, seeds: List[Concept], all_domains: List[str], steps=2, max_nodes=100, max_frontier=20):
+    def run(self, seeds: List[Concept], all_domains: List[str], steps=2, max_nodes=None, max_frontier=12):
+        # 50 nodes a step: with a frontier of 12, each step has room to happen
+        max_nodes = max_nodes or 50 * steps
         frontier = seeds
         for s in seeds:
             self.add_concept(s)
@@ -154,25 +292,25 @@ class VisualGEE:
                     self.graph.add_edge(c.name, ro.name, title="rotate")
                     next_frontier.append(ro)
 
-                for op in self.unary_ops:
+                for op, prefix in self.unary_ops:
                     if len(self.concepts) >= max_nodes:
                         break
+                    if c.outer == prefix and RULES.get(SKIP_RULES.get(prefix, ""), False):
+                        continue
                     new_c = op(c)
                     if new_c.name not in self.concepts:
                         self.add_concept(new_c)
                         self.graph.add_edge(c.name, new_c.name, title=op.__name__[3:])
                         next_frontier.append(new_c)
 
-                if len(self.concepts) > 1 and len(self.concepts) < max_nodes:
-                    partner = random.choice(list(self.concepts.values()))
-                    if partner.name != c.name:
-                        blend = op_blend(c, partner)
-                        # op_blend now returns None for invalid blends
-                        if blend is not None and blend.name not in self.concepts:
-                            self.add_concept(blend)
-                            self.graph.add_edge(c.name, blend.name, title="blend")
-                            self.graph.add_edge(partner.name, blend.name, title="blend")
-                            next_frontier.append(blend)
+                if len(self.concepts) < max_nodes:
+                    partner = choose_partner(c, self.concepts.values())
+                    blend = op_blend(c, partner) if partner else None
+                    if blend is not None and blend.name not in self.concepts:
+                        self.add_concept(blend)
+                        self.graph.add_edge(c.name, blend.name, title="blend")
+                        self.graph.add_edge(partner.name, blend.name, title="blend")
+                        next_frontier.append(blend)
 
             # Prune frontier if it's too large to prevent exponential explosion
             if len(next_frontier) > max_frontier:
@@ -327,6 +465,7 @@ def add_seed():
 
     new_seed = Concept(name, final_domain, props)
     seeds.append(new_seed)
+    Antonyms.warm(semantic_props(props))
 
     return jsonify({
         'success': True,
@@ -372,6 +511,9 @@ def generate():
 
     # "Auto-Detect" is a menu choice, not a domain to rotate concepts into
     real_domains = [d for d in domains if d != "Auto-Detect"]
+
+    # Seeds restored from a saved map haven't had their antonyms looked up
+    Antonyms.warm(set().union(*(semantic_props(s.properties) for s in seeds)))
 
     viz = VisualGEE()
     viz.run(seeds, real_domains, steps=steps)
@@ -746,12 +888,7 @@ def load_concept_map():
         # Restore seeds
         seeds.clear()
         for seed_data in save_data.get('seeds', []):
-            seeds.append(Concept(
-                name=seed_data['name'],
-                domain=seed_data['domain'],
-                properties=set(seed_data.get('properties', [])),
-                dimension=seed_data.get('dimension', 1)
-            ))
+            seeds.append(Concept.from_dict(seed_data))
 
         # Restore domains
         domains.clear()
@@ -760,13 +897,7 @@ def load_concept_map():
         # Restore concepts and graph
         viz = VisualGEE()
         for name, concept_data in save_data.get('concepts', {}).items():
-            concept = Concept(
-                name=concept_data['name'],
-                domain=concept_data['domain'],
-                properties=set(concept_data.get('properties', [])),
-                dimension=concept_data.get('dimension', 1)
-            )
-            viz.add_concept(concept)
+            viz.add_concept(Concept.from_dict(concept_data))
 
         # Restore edges
         for edge in save_data.get('edges', []):

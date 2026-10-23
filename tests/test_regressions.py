@@ -159,5 +159,92 @@ class ExplorerTests(unittest.TestCase):
         self.assertNotIn("debug=True", src)
 
 
+DOMAINS = ["Social", "Tech", "Bio", "Physics", "Phil", "Abstract", "General"]
+
+
+class OperatorTests(unittest.TestCase):
+
+    def setUp(self):
+        self.rules = dict(ce.RULES)
+        self.cache = dict(ce.Antonyms._cache)
+
+    def tearDown(self):
+        ce.RULES.clear(); ce.RULES.update(self.rules)
+        ce.Antonyms._cache.clear(); ce.Antonyms._cache.update(self.cache)
+
+    def test_invert_swaps_properties_for_antonyms(self):
+        ce.Antonyms._cache.update({"liberal": "conservative", "conservative": "liberal"})
+        seed = ce.Concept("Democracy", "Social", {"liberal", "parliamentary"})
+        anti = ce.op_invert(seed)
+        self.assertEqual(anti.properties, {"conservative", "parliamentary", "inverted"})
+        self.assertIn("liberal", ce.op_invert(anti).properties)
+
+    def test_antonym_lookup_prefers_the_commonest_word(self):
+        class Session:
+            def get(self, url, params=None, timeout=None):
+                return types.SimpleNamespace(json=lambda: [
+                    {"word": "conservativist", "tags": ["f:0.0"]},
+                    {"word": "conservative", "tags": ["f:24.9"]}])
+        ce.AutoSeeder._session = Session()
+        self.assertEqual(ce.Antonyms._fetch("liberal"), (True, "conservative"))
+
+    def test_rotate_favours_domains_the_properties_point_at(self):
+        random.seed(1)
+        c = ce.Concept("Bitcoin", "Social", {"digital code", "network data"})
+        hits = sum(ce.op_rotate(c, DOMAINS).domain == "Tech" for _ in range(600))
+        # Uniform over 6 domains would give ~100; weight 1 + 3*2 = 7 of 12 gives ~350
+        self.assertGreater(hits, 250)
+
+    def test_rotate_replaces_the_domain_and_never_goes_home(self):
+        c = ce.Concept("Viral", "Bio", {"x"})
+        once = ce.op_rotate(c, DOMAINS)
+        for _ in range(50):
+            twice = ce.op_rotate(once, DOMAINS)
+            self.assertEqual(twice.name, f"Viral-in-{twice.domain}")
+            self.assertNotIn(twice.domain, ("Bio", once.domain))
+        ce.RULES["rotate_replaces_domain"] = False
+        self.assertTrue(ce.op_rotate(once, DOMAINS).name.startswith(f"{once.name}-in-"))
+
+    def test_blend_needs_different_seeds_and_keeps_the_last_prefix(self):
+        dem, btc = ce.Concept("Democracy", "Social", set()), ce.Concept("Bitcoin", "Tech", set())
+        self.assertIsNone(ce.op_blend(ce.op_invert(dem), ce.op_lift(dem)))
+        blend = ce.op_blend(ce.op_invert(ce.op_lift(dem)), ce.op_rotate(btc, DOMAINS))
+        self.assertEqual(blend.name, "Anti-Democracy-Bitcoin Hybrid")
+        self.assertEqual(blend.roots, {"Democracy", "Bitcoin"})
+
+    def test_seed_names_with_prefix_words_survive_blending(self):
+        warming, btc = ce.Concept("Global Warming", "Physics", set()), ce.Concept("Bitcoin", "Tech", set())
+        self.assertEqual(ce.op_blend(warming, btc).name, "Global Warming-Bitcoin Hybrid")
+
+    def test_skip_rules(self):
+        seeds = [ce.Concept("Democracy", "Social", {"x"}), ce.Concept("Bitcoin", "Tech", {"y"})]
+        random.seed(0)
+        v = ce.VisualGEE(); v.run(seeds, DOMAINS, steps=3)
+        self.assertTrue(any("Anti-Anti-" in n for n in v.concepts))   # kept by default
+        ce.RULES.update(skip_double_invert=True, skip_repeat_scale=True, skip_repeat_recurse=True)
+        random.seed(0)
+        v = ce.VisualGEE(); v.run(seeds, DOMAINS, steps=3)
+        for repeat in ("Anti-Anti-", "Global Global ", "Self-Self-"):
+            self.assertFalse(any(repeat in n for n in v.concepts), repeat)
+
+    def test_every_step_adds_nodes(self):
+        sizes = []
+        for steps in (1, 2, 3):
+            random.seed(0)
+            seeds = [ce.Concept(n, d, {"p"}) for n, d in
+                     [("Democracy", "Social"), ("Photosynthesis", "Bio"), ("Entropy", "Physics"), ("Bitcoin", "Tech")]]
+            v = ce.VisualGEE(); v.run(seeds, DOMAINS, steps=steps)
+            sizes.append(len(v.concepts))
+        self.assertLess(sizes[0], sizes[1])
+        self.assertLess(sizes[1], sizes[2])
+
+    def test_lineage_survives_save_and_load(self):
+        c = ce.op_blend(ce.op_invert(ce.Concept("Democracy", "Social", set())), ce.Concept("Bitcoin", "Tech", set()))
+        back = ce.Concept.from_dict(json.loads(json.dumps(c.to_dict())))
+        self.assertEqual((back.roots, back.base, back.unrotated), (c.roots, c.base, c.unrotated))
+        old = ce.Concept.from_dict({"name": "Anti-X", "domain": "Bio", "properties": []})
+        self.assertEqual(old.roots, {"Anti-X"})
+
+
 if __name__ == "__main__":
     unittest.main()

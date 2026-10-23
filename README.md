@@ -16,6 +16,15 @@ The Concept Explorer takes concepts (like "Democracy", "Bitcoin", "Photosynthesi
 
 It then generates an interactive network graph showing how concepts evolve and connect!
 
+### How the operators use properties
+
+- **Invert** swaps each property for its commonest antonym from Datamuse (liberal → conservative, infectious → noninfectious). Antonyms are looked up when a seed is added, so generating makes no network calls.
+- **Rotate** prefers domains the properties already point at, so it leans towards analogies, but any other domain can still come up.
+- **Blend** only pairs concepts from different seeds, favours shared properties, and keeps each side's last prefix (Anti-Democracy + Bitcoin → "Anti-Democracy-Bitcoin Hybrid").
+- Each step adds up to 50 nodes, so all three expansion steps do something.
+
+`RULES` in `concept_explorer.py` lists the "same as" shortcuts. Only one is on: rotating again replaces the domain (X-in-Bio-in-Tech becomes X-in-Tech). Repeats like Anti-Anti-X are kept by default, because the resolver sometimes finds real ideas in them ("Anti-Anti-Viral" → "Antiviral Resistance"). Switch a rule on to stop building them.
+
 ## Setup
 
 **Quick Start:**
