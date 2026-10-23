@@ -213,17 +213,26 @@ class SemanticResolver:
             # If batch parsing fails, return all as unresolved
             return [_error_result(c.get("name", ""), str(e), "Batch parse failed") for c in concepts]
 
+        names = [c.get("name", "") for c in concepts]
+        # Match by name only where the name is unique in this batch: the same
+        # name in two domains has to go by position
+        unique = {n for n in names if names.count(n) == 1}
         by_original = {
             item["original"]: item for item in data_list
-            if isinstance(item, dict) and isinstance(item.get("original"), str)
+            if isinstance(item, dict) and item.get("original") in unique
         }
+
+        def names_someone_else(item, original):
+            # An answer that names another input in this batch isn't ours,
+            # even if it sits in our position
+            return isinstance(item, dict) and item.get("original") in names and item.get("original") != original
 
         results = []
         for i, concept in enumerate(concepts):
             original = concept.get("name", "")
             if original in by_original:
                 data = by_original[original]
-            elif i < len(data_list):
+            elif i < len(data_list) and not names_someone_else(data_list[i], original):
                 data = data_list[i]
             else:
                 results.append(_error_result(original, "Missing from batch", "Missing from batch response"))
