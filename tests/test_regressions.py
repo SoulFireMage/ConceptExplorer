@@ -93,6 +93,20 @@ class ResolverTests(unittest.TestCase):
         r = sr.SemanticResolver(FakeProvider(reply)).resolve_single("Anti-Structure")
         self.assertEqual(r.resolved_name, "Entropy")
 
+    def test_missing_answer_does_not_borrow_another_concepts(self):
+        reply = json.dumps([{"original": "B", "status": "DISCARD", "resolved_name": "Bee"}])
+        res = sr.SemanticResolver(FakeProvider(reply)).resolve_batch(TWO)
+        self.assertEqual((res[0].original, res[0].resolved_name), ("A", "A"))
+        self.assertIsNotNone(res[0].error)
+        self.assertEqual((res[1].resolved_name, res[1].status), ("Bee", "DISCARD"))
+
+    def test_same_name_in_two_domains_goes_by_position(self):
+        reply = json.dumps([{"original": "Network", "resolved_name": "Computer Network"},
+                            {"original": "Network", "resolved_name": "Social Network"}])
+        res = sr.SemanticResolver(FakeProvider(reply)).resolve_batch(
+            [{"name": "Network", "domain": "Tech"}, {"name": "Network", "domain": "Social"}])
+        self.assertEqual([r.resolved_name for r in res], ["Computer Network", "Social Network"])
+
 
 class ProviderTests(unittest.TestCase):
 
@@ -176,7 +190,8 @@ class OperatorTests(unittest.TestCase):
         ce.Antonyms._cache.update({"liberal": "conservative", "conservative": "liberal"})
         seed = ce.Concept("Democracy", "Social", {"liberal", "parliamentary"})
         anti = ce.op_invert(seed)
-        self.assertEqual(anti.properties, {"conservative", "parliamentary", "inverted"})
+        self.assertEqual(anti.properties, {"conservative", "parliamentary"})
+        self.assertEqual(anti.tags, {"inverted"})
         self.assertIn("liberal", ce.op_invert(anti).properties)
 
     def test_antonym_lookup_prefers_the_commonest_word(self):
@@ -244,6 +259,50 @@ class OperatorTests(unittest.TestCase):
         self.assertEqual((back.roots, back.base, back.unrotated), (c.roots, c.base, c.unrotated))
         old = ce.Concept.from_dict({"name": "Anti-X", "domain": "Bio", "properties": []})
         self.assertEqual(old.roots, {"Anti-X"})
+
+    def test_real_properties_named_like_tags_still_count(self):
+        c = ce.Concept("Lisp", "Tech", {"recursive", "abstract"})
+        self.assertEqual(ce.op_lift(c).properties, {"recursive", "abstract"})
+        self.assertEqual(ce.AutoSeeder.domain_affinity(c.properties, "Abstract"), 1)
+        old = ce.Concept.from_dict({"name": "Anti-X", "domain": "Bio", "properties": ["liberal", "inverted"]})
+        self.assertEqual((old.properties, old.tags), ({"liberal"}, {"inverted"}))
+
+    def test_unary_operators_keep_home(self):
+        r = ce.op_rotate(ce.Concept("Viral", "Bio", {"p"}), ["Tech"])
+        for op in (ce.op_scale_up, ce.op_invert, ce.op_recurse):
+            self.assertEqual(op(r).home, "Bio")
+            for _ in range(30):
+                self.assertNotEqual(ce.op_rotate(op(r), DOMAINS).domain, "Bio")
+        self.assertEqual(ce.op_lift(r).home, "Abstract")
+
+    def test_failed_reverse_lookup_is_retried(self):
+        calls, up = [], {"ok": False}
+        def fetch(word):
+            calls.append(word)
+            if word == "liberal":
+                return True, "conservative"
+            return (True, "liberal") if up["ok"] else (False, None)
+        real = ce.Antonyms._fetch
+        ce.Antonyms._fetch = staticmethod(fetch)
+        try:
+            ce.Antonyms._cache.clear()
+            ce.Antonyms.warm({"liberal"})
+            up["ok"] = True
+            ce.Antonyms.warm({"liberal"})
+        finally:
+            ce.Antonyms._fetch = real
+        self.assertEqual(calls, ["liberal", "conservative", "conservative"])
+        self.assertEqual(ce.Antonyms.opposite("conservative"), "liberal")
+
+    def test_many_seeds_leave_room_for_later_steps(self):
+        random.seed(0)
+        seeds = [ce.Concept(f"Seed{i}", "Social", {"p"}) for i in range(20)]
+        sizes = []
+        for steps in (1, 2, 3):
+            random.seed(0)
+            v = ce.VisualGEE(); v.run(seeds, DOMAINS, steps=steps)
+            sizes.append(len(v.concepts))
+        self.assertEqual(sizes, [70, 120, 170])
 
 
 if __name__ == "__main__":

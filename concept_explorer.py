@@ -97,16 +97,21 @@ class Antonyms:
 
     @classmethod
     def warm(cls, words: Set[str]):
-        """Look up words not seen yet, then their antonyms too, so Anti-Anti can swap back"""
-        for _ in range(2):
-            todo = [w for w in words if w not in cls._cache]
-            if not todo:
-                return
-            with ThreadPoolExecutor(max_workers=8) as pool:
-                for word, (ok, ant) in zip(todo, pool.map(cls._fetch, todo)):
-                    if ok:  # a failed lookup isn't cached, so it's tried again next time
-                        cls._cache[word] = ant
-            words = {a for a in (cls._cache.get(w) for w in todo) if a}
+        """Look up the words, then their antonyms too, so Anti-Anti can swap back"""
+        cls._fetch_missing(words)
+        # Antonyms of every word, cached or not: a reverse lookup that failed
+        # last time is retried
+        cls._fetch_missing({a for a in (cls._cache.get(w) for w in words) if a})
+
+    @classmethod
+    def _fetch_missing(cls, words: Set[str]):
+        todo = [w for w in words if w not in cls._cache]
+        if not todo:
+            return
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for word, (ok, ant) in zip(todo, pool.map(cls._fetch, todo)):
+                if ok:  # a failed lookup isn't cached, so it's tried again next time
+                    cls._cache[word] = ant
 
     @staticmethod
     def _fetch(word: str):
@@ -127,13 +132,13 @@ class Antonyms:
 # ==========================================
 # 2. CORE LOGIC
 # ==========================================
-# Tags the operators add. They record what was done, not what a concept is,
-# so they're left out when properties are compared or inverted.
+# Tags the operators used to mix into properties. Only used to split saves
+# made before tags had their own field.
 OP_TAGS = {"systemic", "inverted", "abstract", "recursive", "loop"}
 
 
-def semantic_props(props: Set[str]) -> Set[str]:
-    return {p for p in props if p not in OP_TAGS and not p.startswith("applied-to-")}
+def _is_old_tag(p: str) -> bool:
+    return p in OP_TAGS or p.startswith("applied-to-")
 
 
 # "Same as" rules applied while generating, before the LLM sees anything.
@@ -152,8 +157,9 @@ RULES = {
 class Concept:
     name: str
     domain: str
-    properties: Set[str]
+    properties: Set[str]  # what the concept is: what operators compare and invert
     dimension: int = 1
+    tags: Optional[Set[str]] = None  # what was done to it ("inverted", "applied-to-Tech")
     # Lineage, so operators don't have to parse names back apart
     roots: Optional[frozenset] = None  # seed names this concept descends from
     base: str = ""       # the name without unary prefixes or rotation
@@ -164,6 +170,7 @@ class Concept:
 
     def __post_init__(self):
         self.id = self.name
+        self.tags = set(self.tags or ())
         self.roots = frozenset(self.roots) if self.roots else frozenset({self.name})
         self.base = self.base or self.name
         self.unrotated = self.unrotated or self.name
@@ -171,38 +178,44 @@ class Concept:
 
     def to_dict(self):
         return {"name": self.name, "domain": self.domain, "properties": list(self.properties),
-                "dimension": self.dimension, "roots": sorted(self.roots), "base": self.base,
+                "tags": sorted(self.tags), "dimension": self.dimension, "roots": sorted(self.roots), "base": self.base,
                 "outer": self.outer, "unrotated": self.unrotated, "home": self.home}
 
     @classmethod
     def from_dict(cls, d):
-        return cls(name=d['name'], domain=d['domain'], properties=set(d.get('properties', [])),
+        props = set(d.get('properties', []))
+        tags = set(d.get('tags', []))
+        if 'tags' not in d:  # an older save, with tags mixed into properties
+            tags = {p for p in props if _is_old_tag(p)}
+            props -= tags
+        return cls(name=d['name'], domain=d['domain'], properties=props, tags=tags,
                    dimension=d.get('dimension', 1), roots=d.get('roots'), base=d.get('base', ''),
                    outer=d.get('outer', ''), unrotated=d.get('unrotated', ''), home=d.get('home', ''))
 
 
-def _unary(c, prefix, props, domain=None, dimension=None):
+def _unary(c, prefix, tags, props=None, domain=None, dimension=None):
     domain = domain or c.domain
     # Bracket a hybrid, so "Global (Global X-Y Hybrid)" doesn't read as a repeat
     wrap = (lambda n: f"({n})") if len(c.roots) > 1 else (lambda n: n)
-    return Concept(f"{prefix}{wrap(c.name)}", domain, props, dimension or c.dimension,
-                   roots=c.roots, base=c.base, outer=prefix,
-                   unrotated=prefix + wrap(c.unrotated), home=domain)
+    return Concept(f"{prefix}{wrap(c.name)}", domain, set(c.properties if props is None else props),
+                   dimension or c.dimension, tags=c.tags | tags,
+                   roots=c.roots, base=c.base, outer=prefix, unrotated=prefix + wrap(c.unrotated),
+                   # Only an operator that changes the domain (Lift) moves home;
+                   # otherwise a rotated concept could rotate back where it began
+                   home=domain if domain != c.domain else c.home)
 
 
-def op_scale_up(c): return _unary(c, "Global ", c.properties | {"systemic"})
+def op_scale_up(c): return _unary(c, "Global ", {"systemic"})
 
 
 def op_invert(c):
     # Swap each property for its antonym where one is known: Anti-Democracy
     # is conservative where Democracy is liberal
-    meaning = semantic_props(c.properties)
-    flipped = {Antonyms.opposite(p) or p for p in meaning}
-    return _unary(c, "Anti-", flipped | (c.properties - meaning) | {"inverted"})
+    return _unary(c, "Anti-", {"inverted"}, props={Antonyms.opposite(p) or p for p in c.properties})
 
 
-def op_lift(c): return _unary(c, "Meta-", c.properties | {"abstract"}, domain="Abstract", dimension=c.dimension + 1)
-def op_recurse(c): return _unary(c, "Self-", c.properties | {"recursive", "loop"})
+def op_lift(c): return _unary(c, "Meta-", {"abstract"}, domain="Abstract", dimension=c.dimension + 1)
+def op_recurse(c): return _unary(c, "Self-", {"recursive", "loop"})
 
 
 def op_rotate(c, all_domains):
@@ -214,14 +227,13 @@ def op_rotate(c, all_domains):
     available = [d for d in all_domains if d != c.domain and not (replace and d == c.home)]
     if not available:
         available = ["General"]
-    meaning = semantic_props(c.properties)
-    weights = [1 + 3 * AutoSeeder.domain_affinity(meaning, d) for d in available]
+    weights = [1 + 3 * AutoSeeder.domain_affinity(c.properties, d) for d in available]
     new_dom = random.choices(available, weights)[0]
 
     stem = c.unrotated if replace else c.name
-    props = {p for p in c.properties if not (replace and p.startswith("applied-to-"))}
-    return Concept(f"{stem}-in-{new_dom}", new_dom, props | {f"applied-to-{new_dom}"}, c.dimension,
-                   roots=c.roots, base=c.base, outer=c.outer, unrotated=c.unrotated, home=c.home)
+    tags = {t for t in c.tags if not (replace and t.startswith("applied-to-"))}
+    return Concept(f"{stem}-in-{new_dom}", new_dom, set(c.properties), c.dimension,
+                   tags=tags | {f"applied-to-{new_dom}"}, roots=c.roots, base=c.base, outer=c.outer, unrotated=c.unrotated, home=c.home)
 
 
 def op_blend(c1, c2):
@@ -236,7 +248,7 @@ def op_blend(c1, c2):
     base = f"{c1.outer}{c1.base}-{c2.outer}{c2.base}"
     name = f"{base} Hybrid"
     return Concept(name, dom, c1.properties | c2.properties, max(c1.dimension, c2.dimension),
-                   roots=c1.roots | c2.roots, base=base, unrotated=name)
+                   tags=c1.tags | c2.tags, roots=c1.roots | c2.roots, base=base, unrotated=name)
 
 
 def choose_partner(c, concepts):
@@ -244,8 +256,7 @@ def choose_partner(c, concepts):
     others = [p for p in concepts if not (p.roots & c.roots)]
     if not others:
         return None
-    mine = semantic_props(c.properties)
-    weights = [1 + 2 * len(mine & semantic_props(p.properties)) for p in others]
+    weights = [1 + 2 * len(c.properties & p.properties) for p in others]
     return random.choices(others, weights)[0]
 
 
@@ -266,24 +277,27 @@ class VisualGEE:
         if c.name not in self.concepts:
             self.concepts[c.name] = c
             color = self.colors.get(c.domain, "#c2f5ff")
-            self.graph.add_node(c.name, label=c.name, title=f"Props: {list(c.properties)}", color=color, size=15+(c.dimension*5))
+            self.graph.add_node(c.name, label=c.name, title=f"Props: {sorted(c.properties)}\nOps: {sorted(c.tags)}", color=color, size=15+(c.dimension*5))
 
-    def run(self, seeds: List[Concept], all_domains: List[str], steps=2, max_nodes=None, max_frontier=12):
-        # 50 nodes a step: with a frontier of 12, each step has room to happen
-        max_nodes = max_nodes or 50 * steps
+    def run(self, seeds: List[Concept], all_domains: List[str], steps=2, max_nodes=None,
+            max_frontier=12, per_step=50):
         frontier = seeds
         for s in seeds:
             self.add_concept(s)
+        if max_nodes is None:
+            max_nodes = len(self.concepts) + per_step * steps
 
         for i in range(steps):
-            # Stop if we've hit the node limit
-            if len(self.concepts) >= max_nodes:
+            # Each step gets its own budget, so many seeds can't use up
+            # the whole run in step 1
+            limit = min(max_nodes, len(self.concepts) + per_step)
+            if len(self.concepts) >= limit:
                 break
 
             next_frontier = []
             for c in frontier:
                 # Check node limit before each operation
-                if len(self.concepts) >= max_nodes:
+                if len(self.concepts) >= limit:
                     break
 
                 ro = op_rotate(c, all_domains)
@@ -293,7 +307,7 @@ class VisualGEE:
                     next_frontier.append(ro)
 
                 for op, prefix in self.unary_ops:
-                    if len(self.concepts) >= max_nodes:
+                    if len(self.concepts) >= limit:
                         break
                     if c.outer == prefix and RULES.get(SKIP_RULES.get(prefix, ""), False):
                         continue
@@ -303,7 +317,7 @@ class VisualGEE:
                         self.graph.add_edge(c.name, new_c.name, title=op.__name__[3:])
                         next_frontier.append(new_c)
 
-                if len(self.concepts) < max_nodes:
+                if len(self.concepts) < limit:
                     partner = choose_partner(c, self.concepts.values())
                     blend = op_blend(c, partner) if partner else None
                     if blend is not None and blend.name not in self.concepts:
@@ -465,7 +479,7 @@ def add_seed():
 
     new_seed = Concept(name, final_domain, props)
     seeds.append(new_seed)
-    Antonyms.warm(semantic_props(props))
+    Antonyms.warm(props)
 
     return jsonify({
         'success': True,
@@ -513,7 +527,7 @@ def generate():
     real_domains = [d for d in domains if d != "Auto-Detect"]
 
     # Seeds restored from a saved map haven't had their antonyms looked up
-    Antonyms.warm(set().union(*(semantic_props(s.properties) for s in seeds)))
+    Antonyms.warm(set().union(*(s.properties for s in seeds)))
 
     viz = VisualGEE()
     viz.run(seeds, real_domains, steps=steps)
