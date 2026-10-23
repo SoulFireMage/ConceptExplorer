@@ -33,6 +33,10 @@ python concept_explorer.py --port 5059
 
 **Install as System Service:** See `INSTALL_SERVICE.md` for auto-start on boot.
 
+**Options:** `--host` sets the interface (default `0.0.0.0`, the whole network). `--debug` turns on Flask's debug mode. Its debugger can run code, so pair it with `--host 127.0.0.1`.
+
+**Tests:** `python -m unittest discover tests` (no network needed).
+
 ## Usage
 
 1. Enter a concept name (e.g., "Democracy", "Neural Network", "Evolution")

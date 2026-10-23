@@ -33,7 +33,7 @@ INSTRUCTIONS:
    - If it matches a specific real-world term, return that term (e.g., "Anti-Structure" -> "Entropy").
    - If it is a valid but abstract compound, refine the name to sound standard (e.g., "Time-Loop-Recursive" -> "Closed Timelike Curve").
    - If it is a novel/creative metaphor that makes sense, give it a cool name (e.g., "Social-Toxin-Network" -> "Viral Misinformation").
-   - If it is redundant, contradictory, or meaningless (e.g., "Anti-Anti-Time", "Water-Fire-Hybrid"), mark it as RUBBISH.
+   - If it is redundant, contradictory, or meaningless (e.g., "Anti-Anti-Time", "Water-Fire-Hybrid"), mark it as DISCARD.
 
 OUTPUT FORMAT:
 Return ONLY a valid JSON object with no markdown formatting:
@@ -97,6 +97,39 @@ class ResolvedConcept:
         }
 
 
+def _strip_fences(text: str) -> str:
+    """Remove a markdown code fence around a JSON reply, if there is one"""
+    text = text.strip()
+    if text.startswith("```"):
+        match = re.search(r'^```(?:json)?\s*(.*?)\s*```', text, re.DOTALL)
+        text = match.group(1) if match else re.sub(r'^```(?:json)?\s*', '', text)
+    return text
+
+
+def _normalize_status(value) -> str:
+    """Anything the model calls DISCARD or RUBBISH is a discard; the rest is kept"""
+    return "DISCARD" if str(value or "").strip().upper() in ("DISCARD", "RUBBISH") else "KEEP"
+
+
+def _to_result(original: str, data) -> ResolvedConcept:
+    """Build a ResolvedConcept from one parsed JSON answer"""
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected a JSON object, got {type(data).__name__}")
+    return ResolvedConcept(
+        original=original,
+        resolved_name=data.get("resolved_name") or original,
+        definition=data.get("definition") or "",
+        status=_normalize_status(data.get("status")),
+        confidence=float(data.get("confidence", 0.5))
+    )
+
+
+def _error_result(original: str, error: str, definition: str = "") -> ResolvedConcept:
+    """An unresolved concept: kept under its own name, with the reason"""
+    return ResolvedConcept(original=original, resolved_name=original, definition=definition,
+                           status="KEEP", confidence=0.0, error=error)
+
+
 class SemanticResolver:
     """
     Resolves raw concept names to meaningful terms using an LLM.
@@ -114,40 +147,10 @@ class SemanticResolver:
     def _parse_response(self, response_text: str, original: str) -> ResolvedConcept:
         """Parse the LLM response into a ResolvedConcept"""
         try:
-            # Try to extract JSON from the response
-            # Handle cases where the model wraps it in markdown code blocks
-            text = response_text.strip()
-
-            # Remove markdown code blocks if present
-            if text.startswith("```"):
-                # Find the JSON content between code blocks
-                match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
-                if match:
-                    text = match.group(1)
-                else:
-                    # Try removing just the backticks
-                    text = re.sub(r'^```(?:json)?\s*', '', text)
-                    text = re.sub(r'\s*```$', '', text)
-
-            data = json.loads(text)
-
-            return ResolvedConcept(
-                original=original,
-                resolved_name=data.get("resolved_name", original),
-                definition=data.get("definition", ""),
-                status=data.get("status", "KEEP").upper(),
-                confidence=float(data.get("confidence", 0.5))
-            )
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            return _to_result(original, json.loads(_strip_fences(response_text)))
+        except (ValueError, TypeError) as e:
             # If parsing fails, keep the original concept
-            return ResolvedConcept(
-                original=original,
-                resolved_name=original,
-                definition="Failed to parse LLM response",
-                status="KEEP",
-                confidence=0.0,
-                error=str(e)
-            )
+            return _error_result(original, str(e), "Failed to parse LLM response")
 
     def resolve_single(self, concept_name: str, domain: str = "General") -> ResolvedConcept:
         """
@@ -175,8 +178,9 @@ class SemanticResolver:
 
             result = self._parse_response(response.content, concept_name)
 
-            # Cache the result
-            self._cache[cache_key] = result
+            # Cache the result (not failures, so a retry asks again)
+            if result.error is None:
+                self._cache[cache_key] = result
 
             return result
 
@@ -192,64 +196,40 @@ class SemanticResolver:
             )
 
     def _parse_batch_response(self, response_text: str, concepts: List[Dict[str, str]]) -> List[ResolvedConcept]:
-        """Parse a batch LLM response into multiple ResolvedConcepts"""
-        results = []
+        """
+        Parse a batch LLM response into one ResolvedConcept per input concept.
 
+        Answers are matched by their "original" field, falling back to position,
+        so a reordered reply still lands on the right concept. Each answer is
+        parsed on its own: one malformed entry doesn't sink the batch.
+        """
         try:
-            text = response_text.strip()
-
-            # Remove markdown code blocks if present
-            if text.startswith("```"):
-                match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', text, re.DOTALL)
-                if match:
-                    text = match.group(1)
-                else:
-                    text = re.sub(r'^```(?:json)?\s*', '', text)
-                    text = re.sub(r'\s*```$', '', text)
-
-            data_list = json.loads(text)
-
+            data_list = json.loads(_strip_fences(response_text))
             if not isinstance(data_list, list):
                 raise ValueError("Expected JSON array")
-
-            # Match results to original concepts by order
-            for i, concept in enumerate(concepts):
-                original = concept.get("name", "")
-
-                if i < len(data_list):
-                    data = data_list[i]
-                    result = ResolvedConcept(
-                        original=original,
-                        resolved_name=data.get("resolved_name", original),
-                        definition=data.get("definition", ""),
-                        status=data.get("status", "KEEP").upper(),
-                        confidence=float(data.get("confidence", 0.5))
-                    )
-                else:
-                    # Not enough results returned
-                    result = ResolvedConcept(
-                        original=original,
-                        resolved_name=original,
-                        definition="Missing from batch response",
-                        status="KEEP",
-                        confidence=0.0,
-                        error="Missing from batch"
-                    )
-                results.append(result)
-
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
+        except (ValueError, TypeError) as e:
             # If batch parsing fails, return all as unresolved
-            for concept in concepts:
-                original = concept.get("name", "")
-                results.append(ResolvedConcept(
-                    original=original,
-                    resolved_name=original,
-                    definition="Batch parse failed",
-                    status="KEEP",
-                    confidence=0.0,
-                    error=str(e)
-                ))
+            return [_error_result(c.get("name", ""), str(e), "Batch parse failed") for c in concepts]
 
+        by_original = {
+            item["original"]: item for item in data_list
+            if isinstance(item, dict) and isinstance(item.get("original"), str)
+        }
+
+        results = []
+        for i, concept in enumerate(concepts):
+            original = concept.get("name", "")
+            if original in by_original:
+                data = by_original[original]
+            elif i < len(data_list):
+                data = data_list[i]
+            else:
+                results.append(_error_result(original, "Missing from batch", "Missing from batch response"))
+                continue
+            try:
+                results.append(_to_result(original, data))
+            except (ValueError, TypeError) as e:
+                results.append(_error_result(original, str(e), "Failed to parse LLM response"))
         return results
 
     def resolve_batch_llm(self, concepts: List[Dict[str, str]], batch_size: int = 5) -> List[ResolvedConcept]:
@@ -261,23 +241,14 @@ class SemanticResolver:
             batch_size: Number of concepts to resolve in a single LLM call
 
         Returns:
-            List of ResolvedConcept results
+            List of ResolvedConcept results, in the same order as `concepts`.
+            Failures carry their error; they aren't cached, so a retry asks again.
         """
-        all_results = []
+        def key(c):
+            return f"{c.get('name', '')}|{c.get('domain', 'General')}"
 
-        # Filter out already cached concepts
-        uncached = []
-        cached_results = {}
-
-        for concept in concepts:
-            name = concept.get("name", "")
-            domain = concept.get("domain", "General")
-            cache_key = f"{name}|{domain}"
-
-            if cache_key in self._cache:
-                cached_results[name] = self._cache[cache_key]
-            else:
-                uncached.append(concept)
+        results: Dict[str, ResolvedConcept] = {}
+        uncached = [c for c in concepts if key(c) not in self._cache]
 
         # Process uncached concepts in batches
         for i in range(0, len(uncached), batch_size):
@@ -296,52 +267,16 @@ class SemanticResolver:
                     system_prompt=BATCH_RESOLVER_SYSTEM_PROMPT,
                     user_prompt=user_prompt
                 )
-
                 batch_results = self._parse_batch_response(response.content, batch)
-
-                # Cache the results
-                for j, result in enumerate(batch_results):
-                    name = batch[j].get("name", "")
-                    domain = batch[j].get("domain", "General")
-                    cache_key = f"{name}|{domain}"
-                    self._cache[cache_key] = result
-
             except Exception as e:
-                # On error, create error results for this batch
-                batch_results = [
-                    ResolvedConcept(
-                        original=c.get("name", ""),
-                        resolved_name=c.get("name", ""),
-                        definition="",
-                        status="KEEP",
-                        confidence=0.0,
-                        error=str(e)
-                    )
-                    for c in batch
-                ]
+                batch_results = [_error_result(c.get("name", ""), str(e)) for c in batch]
 
-        # Rebuild results in original order
-        for concept in concepts:
-            name = concept.get("name", "")
-            domain = concept.get("domain", "General")
-            cache_key = f"{name}|{domain}"
+            for c, result in zip(batch, batch_results):
+                results[key(c)] = result
+                if result.error is None:
+                    self._cache[key(c)] = result
 
-            if cache_key in self._cache:
-                all_results.append(self._cache[cache_key])
-            elif name in cached_results:
-                all_results.append(cached_results[name])
-            else:
-                # Shouldn't happen, but fallback
-                all_results.append(ResolvedConcept(
-                    original=name,
-                    resolved_name=name,
-                    definition="",
-                    status="KEEP",
-                    confidence=0.0,
-                    error="Not found in results"
-                ))
-
-        return all_results
+        return [results.get(key(c)) or self._cache[key(c)] for c in concepts]
 
     def resolve_batch(self, concepts: List[Dict[str, str]], use_batching: bool = True, batch_size: int = 5) -> List[ResolvedConcept]:
         """

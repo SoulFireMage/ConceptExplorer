@@ -180,10 +180,13 @@ class GeminiProvider(LLMProvider):
         return ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-pro"]
 
     def complete(self, system_prompt: str, user_prompt: str) -> LLMResponse:
-        url = f"{self.BASE_URL}/{self.model}:generateContent?key={self.api_key}"
+        # Key goes in a header, not the URL: requests puts the URL into its
+        # error messages, and those are shown in the browser
+        url = f"{self.BASE_URL}/{self.model}:generateContent"
 
         headers = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key
         }
 
         payload = {
